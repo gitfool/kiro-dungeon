@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "pstack",
+  "version": "1.0.0",
+  "description": "Rigorous engineering skills and principles from the Cursor plugin pstack by Lauren Tan, packaged as a Kiro power.",
+  "author": {
+    "name": "Sean Fausett",
+    "url": "https://github.com/gitfool"
+  },
+  "keywords": [
+    "poteto",
+    "pstack",
+    "unslop",
+    "engineering principles",
+    "rigorous engineering"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/gitfool/kiro-dungeon/tree/main/pstack",
+  "repository": "https://github.com/gitfool/kiro-dungeon"
+}

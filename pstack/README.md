@@ -1,123 +1,85 @@
 # pstack
 
-Syncs [pstack](https://github.com/cursor/plugins/tree/main/pstack) skills and principles to the global [steering](https://kiro.dev/docs/steering) directory, so they work as native steering files without losing functionality.
+Packages [pstack](https://github.com/cursor/plugins/tree/main/pstack) skills and principles as a Kiro [power](https://kiro.dev/docs/powers), so they install in one step and activate on keyword.
 
 `pstack` is a set of rigorous engineering workflows by Lauren Tan ([github](https://github.com/poteto), [twitter](https://twitter.com/poteto)). It includes many skills and principles covering bug fixes, performance, architecture, code review, and more. See the pstack [README](https://github.com/cursor/plugins/blob/main/pstack/README.md) or [guide](https://hustlecoding.github.io/pstack-explained/) for more details.
 
-## How it works
+## Why this works with no conversion
 
-The sync script downloads the pstack repo, extracts each skill's `SKILL.md`, injects Kiro-compatible front-matter (inclusion mode, name, description), and writes them to `~/.kiro/steering/pstack/`. Support files (playbooks, references) are renamed from `.md` to `.md.txt` so Kiro's recursive steering scanner doesn't auto-load them as separate entries.
+pstack already follows the open [Agent Skills](https://agentskills.io/specification) standard, which Kiro implements. Each skill is a directory holding a `SKILL.md` plus optional `playbooks/`, `references/`, and `scripts/`. Kiro reads that format directly, so `skills/` here is a near-verbatim mirror of upstream.
 
-The upstream description field from each skill is preserved in the front-matter, enabling Kiro's `inclusion: auto` mode to semantically match skills to your requests.
+Only immediate subdirectories of `skills/` count as skills, and clients do not search deeper. Nested markdown under `playbooks/` and `references/` is therefore only read when a skill points at it, which is exactly how pstack expects it to be used.
+
+One fix is applied during the sync. The spec requires each skill's `name` to match its directory name, and upstream `poteto-mode` declares `Poteto Mode`. Kiro rejects a mismatched name silently, so the skill would not load at all. The sync normalizes it. Reported upstream as [cursor/plugins#237](https://github.com/cursor/plugins/issues/237).
 
 ## Install
 
-Download `sync-pstack.ps1` (Windows/WSL/any pwsh 7) or `sync-pstack.sh` (macOS/Linux) to `~/.local/bin/`:
+Powers panel, then **Add Custom Power**, then **Import power from GitHub**:
 
-### Linux / macOS
-
-```sh
-mkdir -p ~/.local/bin
-curl -fsSL https://raw.githubusercontent.com/gitfool/kiro-dungeon/main/pstack/sync-pstack.sh -o ~/.local/bin/sync-pstack.sh
-chmod +x ~/.local/bin/sync-pstack.sh
+```
+https://github.com/gitfool/kiro-dungeon/tree/main/pstack
 ```
 
-Requires `bash`, `curl`, `unzip`, and `jq`.
-
-### Windows (PowerShell 7)
-
-```powershell
-New-Item -ItemType Directory -Path "$HOME\.local\bin" -Force
-Invoke-WebRequest https://raw.githubusercontent.com/gitfool/kiro-dungeon/main/pstack/sync-pstack.ps1 -OutFile "$HOME\.local\bin\sync-pstack.ps1"
-```
-
-Then add to PATH with scoop:
-
-```powershell
-scoop shim add sync-pstack "$HOME\.local\bin\sync-pstack.ps1"
-```
-
-Or add `~/.local/bin` to your PATH manually.
+To install a local checkout instead, choose **Import power from a folder** and select the `pstack` directory.
 
 ## Usage
 
-```sh
-# First run creates a config file and syncs everything
-sync-pstack.sh
-
-# Preview what would change without writing
-sync-pstack.sh --dry-run
-
-# Reset config to defaults
-sync-pstack.sh --init
-```
-
-PowerShell equivalent: `sync-pstack.ps1`, `sync-pstack.ps1 -DryRun`, `sync-pstack.ps1 -Init`.
-
-## Configuration
-
-On first run, the script creates `sync-pstack.config.json` next to itself:
-
-```json
-{
-  "repository": "cursor/plugins",
-  "branch": "main",
-  "basePath": "pstack/skills",
-  "includeAlways": [
-    "principle-laziness-protocol",
-    "unslop"
-  ],
-  "includeAuto": []
-}
-```
-
-| Field | What it does |
-|-------|-------------|
-| `includeAlways` | Skills set to `inclusion: always` (loaded every session) |
-| `includeAuto` | Skills set to `inclusion: auto` (loaded when Kiro matches the description to your request) |
-| Everything else | Defaults to `inclusion: manual` (invoke with `#pstack-skillname` in chat) |
-
-## Output structure
+Skills activate when you include a power keyword in your message: `poteto`, `pstack`, `unslop`, `rigorous engineering`, or `engineering principles`. Prefix your request with a keyword, optionally naming the skill you want.
 
 ```
-~/.kiro/steering/pstack/
-├── skills/
+poteto this pr has a subtle bug where the scroll drifts every 750ms even when idle
+pstack how do we cancel runs? do we have an n+1 when we look up every run to cancel?
+poteto why is this feature flag not on yet?
+pstack interrogate this pr
+unslop the README
+```
+
+`poteto` and `pstack` are interchangeable. On their own they route through the `poteto-mode` hub skill, which matches the request to a playbook and pulls in the other skills as its steps need them. Name a skill after the keyword, as in the `how` and `interrogate` examples, to go straight there and skip the hub.
+
+`unslop` is both a keyword and a skill name, so it needs no prefix.
+
+## Making a skill always-on
+
+Power skills activate on keyword, not every turn. To make one always-on, ask Kiro to create a global steering file. For example:
+
+> Create a global steering file that always applies pstack's unslop skill
+
+That writes a small file to `~/.kiro/steering/` with `inclusion: always` and a directive referring to the skill. The keyword in the directive triggers the power, and the agent loads the skill every turn without being asked.
+
+## What does not carry over from Cursor
+
+Skills, playbooks, principles, and reference material all port cleanly. These do not:
+
+- **Explicit-only invocation.** Most pstack skills set `disable-model-invocation: true` so that `/poteto-mode` decides what runs. In this power, the keyword gate serves a similar role: skills only activate when you mention a keyword. However, once activated all skills in the power become available to the agent for that turn, rather than only the one the hub selects. Raised as [kirodotdev/Kiro#10985](https://github.com/kirodotdev/Kiro/issues/10985).
+- **Per-role model routing.** Cursor's `/setup-pstack` maps roles to different models. Kiro uses one model per turn, so skills fall back to their documented defaults.
+- **Subagent routing.** References to `subagent_type: "poteto-agent"` have no Kiro equivalent.
+- **Cursor built-ins.** Skills that reach for `/loop`, `/create-skill`, `deslop`, `control-cli`, or `control-ui` need those separately. The last three ship in Cursor's `cursor-team-kit`, not in pstack.
+
+## Structure
+
+```
+pstack/
+├── plugin.json                 ← power manifest
+├── skills/                     ← mirror of upstream pstack/skills
 │   ├── poteto-mode/
-│   │   ├── SKILL.md              ← steering entry (with Kiro front-matter)
-│   │   ├── playbooks/            ← support files (*.md.txt, not scanned)
-│   │   └── references/
-│   ├── how/
 │   │   ├── SKILL.md
-│   │   └── references/
-│   ├── unslop/
+│   │   ├── playbooks/
+│   │   ├── references/
+│   │   └── scripts/
+│   ├── principle-laziness-protocol/
 │   │   └── SKILL.md
 │   └── ...
-└── principles/
-    ├── laziness-protocol/
-    │   └── SKILL.md
-    ├── prove-it-works/
-    │   └── SKILL.md
-    └── ...
+├── sync-pstack.ps1             ← maintainer tool
+└── sync-pstack.sh
 ```
 
-## Editor setup
-
-To get markdown highlighting for `.md.txt` files, add to your VS Code / Kiro settings:
-
-```json
-"files.associations": {
-    "*.md.txt": "markdown"
-}
-```
-
-## Updating
-
-Run the sync script again. It compares content and only updates files that changed upstream.
+Principles keep their upstream `principle-` prefix and sit alongside the other skills, because the spec requires every skill to be an immediate child of `skills/`.
 
 ## Links
 
 - [pstack source](https://github.com/cursor/plugins/tree/main/pstack)
-- [pstack community guide](https://hustlecoding.github.io/pstack-explained/)
-- [Kiro steering docs](https://kiro.dev/docs/steering)
-- [Kiro powers docs](https://kiro.dev/docs/powers) (future: this could become a Kiro power)
-- [Claude Code port](https://github.com/ennioferreirab/poteto-mode) (similar effort for Claude Code)
+- [pstack guide](https://hustlecoding.github.io/pstack-explained/)
+- [Agent Skills specification](https://agentskills.io/specification)
+- [Agent Plugins specification](https://agent-plugins.org)
+- [Kiro powers](https://kiro.dev/docs/powers) and [skills](https://kiro.dev/docs/skills) docs
+- [Claude Code port](https://github.com/ennioferreirab/poteto-mode) of the same skills

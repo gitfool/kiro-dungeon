@@ -8,4 +8,6 @@ A playground for [Kiro](https://kiro.dev), including [steering](https://kiro.dev
 
 | Name | Description |
 | --- | --- |
-| [pstack](pstack/README.md) | Cursor plugin [pstack](https://github.com/cursor/plugins/tree/main/pstack) skills and principles |
+| [pstack](pstack/README.md) | Cursor plugin [pstack](https://github.com/cursor/plugins/tree/main/pstack) skills and principles<sup>1</sup> |
+
+<sup>1</sup> Install as a Kiro power. See subdirectory README for details.

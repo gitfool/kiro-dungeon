@@ -1,75 +1,49 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Syncs pstack skills from GitHub to Kiro global steering directory.
+    Mirrors pstack skills from GitHub into this power's skills/ directory.
 
 .DESCRIPTION
-    Downloads the pstack plugin repo as a zip archive, extracts SKILL.md files,
-    injects Kiro front-matter (inclusion mode), and writes them to
-    ~/.kiro/steering/pstack/. Support files (playbooks, references) are renamed
-    to .txt so Kiro's recursive .md scanner does not auto-load them as steering
-    entries. Scripts directories are skipped entirely.
+    Downloads the pstack plugin from the cursor/plugins repo and mirrors its
+    skills into ./skills/, so this directory can be installed as a Kiro power.
 
-    On first run, creates a default config at sync-pstack.config.json next to
-    this script. Edit that file to control which skills are always-on, auto, or
-    manual (the default).
+    Content is copied verbatim apart from one fix. The Agent Skills spec
+    requires each skill's name field to match its directory name exactly, and
+    upstream poteto-mode declares "Poteto Mode". Kiro rejects skills whose name
+    does not match, silently, so the name is normalized during the sync. See
+    https://github.com/cursor/plugins/issues/237.
 
-.PARAMETER Init
-    Recreate the config file with defaults (overwrites existing config).
+    Support directories (playbooks, references, scripts) are mirrored as-is.
+    Only immediate subdirectories of skills/ are treated as skills, so nested
+    markdown is never loaded and needs no special handling.
+
+    This is a maintainer tool, not an installer. Run it to refresh skills/ when
+    upstream changes, then commit the result.
 
 .PARAMETER DryRun
-    Show what would be synced without writing anything.
+    Show what would change without writing anything.
 
 .EXAMPLE
     sync-pstack.ps1
-    sync-pstack.ps1 -Init
     sync-pstack.ps1 -DryRun
 #>
 
 [CmdletBinding()]
 param(
-    [switch]$Init,
     [switch]$DryRun
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# --- Upstream source ---
+$Repository = 'cursor/plugins'
+$Branch = 'main'
+$BasePath = 'pstack/skills'
+
 # --- Paths ---
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$ConfigPath = Join-Path $ScriptDir 'sync-pstack.config.json'
-$SteeringRoot = Join-Path $HOME '.kiro' 'steering' 'pstack'
-
-# --- Default config ---
-$DefaultConfig = @{
-    repository    = 'cursor/plugins'
-    branch        = 'main'
-    basePath      = 'pstack/skills'
-    includeAlways = @(
-        'principle-laziness-protocol'
-        'unslop'
-    )
-    includeAuto   = @()
-}
-
-# --- Ensure config exists ---
-if ($Init -or -not (Test-Path $ConfigPath)) {
-    $action = if (Test-Path $ConfigPath) { 'Recreated' } else { 'Created' }
-    $DefaultConfig | ConvertTo-Json -Depth 4 | Set-Content -Path $ConfigPath -Encoding utf8NoBOM
-    Write-Host "  $action config: $ConfigPath" -ForegroundColor Green
-    if ($Init) {
-        Write-Host "  Edit includeAlways/includeAuto to control skill inclusion modes." -ForegroundColor Gray
-        exit 0
-    }
-}
-
-# --- Load config ---
-$Config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
-$Repository = $Config.repository
-$Branch = $Config.branch
-$BasePath = $Config.basePath
-$IncludeAlways = @($Config.includeAlways)
-$IncludeAuto = @($Config.includeAuto)
+$SkillsRoot = Join-Path $ScriptDir 'skills'
 
 Write-Host "sync-pstack: $Repository@$Branch ($BasePath)" -ForegroundColor Cyan
 if ($DryRun) { Write-Host "  [DRY RUN]" -ForegroundColor Yellow }
@@ -90,12 +64,9 @@ catch {
     Write-Error "Failed to download archive: $($_.Exception.Message)"
     exit 1
 }
-$ProgressPreference = $prevProgress
 
 Write-Host "  Extracting..." -ForegroundColor Gray
 if (Test-Path $TempDir) { Remove-Item $TempDir -Recurse -Force }
-$prevProgress = $ProgressPreference
-$ProgressPreference = 'SilentlyContinue'
 Expand-Archive -Path $ZipPath -DestinationPath $TempDir -Force
 $ProgressPreference = $prevProgress
 Remove-Item $ZipPath -Force
@@ -110,72 +81,46 @@ if (-not (Test-Path $SourceRoot)) {
     exit 1
 }
 
-# --- Parse upstream front-matter ---
-function Get-UpstreamDescription {
-    param([string]$Content)
-
-    $match = [regex]::Match($Content, '\A---\s*\r?\n(.*?)\r?\n---\s*\r?\n', [System.Text.RegularExpressions.RegexOptions]::Singleline)
-    if ($match.Success) {
-        $yaml = $match.Groups[1].Value
-        $descMatch = [regex]::Match($yaml, '(?m)^description:\s*"?(.+?)"?\s*$')
-        if ($descMatch.Success) {
-            return $descMatch.Groups[1].Value
-        }
-    }
-    return $null
-}
-
-# --- Front-matter injection ---
-function Add-KiroFrontMatter {
+# --- Normalize the skill name to match its directory ---
+function Set-SkillName {
     param(
         [string]$Content,
-        [string]$SkillName,
-        [string]$InclusionMode
+        [string]$SkillName
     )
 
-    # Extract description from upstream front-matter
-    $description = Get-UpstreamDescription -Content $Content
-    if (-not $description) {
-        $description = "pstack skill: $SkillName"
-    }
+    $match = [regex]::Match($Content, '\A(---\s*\r?\n)(.*?)(\r?\n---\s*\r?\n)', [System.Text.RegularExpressions.RegexOptions]::Singleline)
+    if (-not $match.Success) { return $Content }
 
-    # Strip existing Cursor front-matter
-    $stripped = $Content
-    $match = [regex]::Match($stripped, '\A---\s*\r?\n.*?\r?\n---\s*\r?\n', [System.Text.RegularExpressions.RegexOptions]::Singleline)
-    if ($match.Success) {
-        $stripped = $stripped.Substring($match.Length)
-    }
+    $frontMatter = $match.Groups[2].Value
+    $fixed = [regex]::Replace($frontMatter, '(?m)^name:.*$', "name: $SkillName")
+    if ($fixed -eq $frontMatter) { return $Content }
 
-    $fm = "---`ninclusion: $InclusionMode`nname: pstack-$SkillName`ndescription: `"$description`"`n---`n`n"
-    return $fm + $stripped.TrimStart()
+    return $match.Groups[1].Value + $fixed + $match.Groups[3].Value + $Content.Substring($match.Length)
 }
 
 # --- File output ---
-$stats = @{ created = 0; updated = 0; unchanged = 0; support = 0 }
+$stats = @{ created = 0; updated = 0; unchanged = 0; normalized = 0 }
 
-function Write-OutputFile {
+# Signature of a file's bytes with CR removed. Comparing this way avoids
+# reporting every file as changed on a Windows working tree, where text=auto
+# yields CRLF while upstream archives are always LF.
+function Get-Signature {
+    param([string]$Path)
+
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    return [Convert]::ToBase64String([byte[]]@($bytes | Where-Object { $_ -ne 13 }))
+}
+
+function Copy-OutputFile {
     param(
-        [string]$LocalPath,
-        [string]$Content
+        [string]$SourcePath,
+        [string]$DestPath
     )
 
-    $relativePath = $LocalPath.Replace($SteeringRoot, '~/.kiro/steering/pstack').Replace('\', '/')
+    $relativePath = $DestPath.Replace($ScriptDir, '.').Replace('\', '/')
 
-    if ($DryRun) {
-        $action = if (Test-Path $LocalPath) { "update" } else { "create" }
-        Write-Host "    [$action] $relativePath" -ForegroundColor DarkGray
-        if ($action -eq 'create') { $stats.created++ } else { $stats.updated++ }
-        return
-    }
-
-    $dir = Split-Path -Parent $LocalPath
-    if (-not (Test-Path $dir)) {
-        New-Item -ItemType Directory -Path $dir -Force | Out-Null
-    }
-
-    if (Test-Path $LocalPath) {
-        $existing = Get-Content $LocalPath -Raw -ErrorAction SilentlyContinue
-        if ($existing -eq $Content) {
+    if (Test-Path $DestPath) {
+        if ((Get-Signature $SourcePath) -eq (Get-Signature $DestPath)) {
             Write-Host "    [unchanged] $relativePath" -ForegroundColor DarkGray
             $stats.unchanged++
             return
@@ -188,82 +133,87 @@ function Write-OutputFile {
         $stats.created++
     }
 
-    Set-Content -Path $LocalPath -Value $Content -NoNewline -Encoding utf8NoBOM
+    if ($DryRun) { return }
+
+    $dir = Split-Path -Parent $DestPath
+    if (-not (Test-Path $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+    Copy-Item -Path $SourcePath -Destination $DestPath -Force
 }
 
-# --- Sync support subdirectory (playbooks, references) ---
+# --- Mirror a directory tree verbatim ---
 function Sync-SupportDir {
     param(
         [string]$SourceDir,
         [string]$DestDir
     )
 
-    foreach ($item in Get-ChildItem $SourceDir) {
+    foreach ($item in Get-ChildItem $SourceDir | Sort-Object Name) {
         if ($item.PSIsContainer) {
             Sync-SupportDir -SourceDir $item.FullName -DestDir (Join-Path $DestDir $item.Name)
         }
         else {
-            $content = Get-Content $item.FullName -Raw
-            $destName = if ($item.Extension -eq '.md') { $item.Name + '.txt' } else { $item.Name }
-            $destPath = Join-Path $DestDir $destName
-            Write-OutputFile -LocalPath $destPath -Content $content
-            $stats.support++
+            Copy-OutputFile -SourcePath $item.FullName -DestPath (Join-Path $DestDir $item.Name)
         }
     }
 }
 
-# --- Sync a single skill folder ---
+# --- Mirror one skill folder ---
 function Sync-SkillFolder {
     param(
         [string]$SourceDir,
-        [string]$SkillName,
-        [string]$Category
+        [string]$SkillName
     )
 
-    $localBase = if ($Category -eq 'principles') {
-        $shortName = $SkillName -replace '^principle-', ''
-        Join-Path $SteeringRoot 'principles' $shortName
-    } else {
-        Join-Path $SteeringRoot 'skills' $SkillName
-    }
+    $localBase = Join-Path $SkillsRoot $SkillName
 
-    $inclusionMode = if ($IncludeAlways -contains $SkillName) {
-        'always'
-    } elseif ($IncludeAuto -contains $SkillName) {
-        'auto'
-    } else {
-        'manual'
-    }
-
-    foreach ($item in Get-ChildItem $SourceDir) {
+    foreach ($item in Get-ChildItem $SourceDir | Sort-Object Name) {
         if ($item.PSIsContainer) {
             Sync-SupportDir -SourceDir $item.FullName -DestDir (Join-Path $localBase $item.Name)
         }
         elseif ($item.Name -eq 'SKILL.md') {
+            # Transform to a temp file, then take the same compare and copy path
+            # as every other file, so output stays byte-exact.
             $content = Get-Content $item.FullName -Raw
-            $displayName = if ($Category -eq 'principles') { $SkillName -replace '^principle-', '' } else { $SkillName }
-            $transformed = Add-KiroFrontMatter -Content $content -SkillName $displayName -InclusionMode $inclusionMode
-            $localPath = Join-Path $localBase 'SKILL.md'
-            Write-OutputFile -LocalPath $localPath -Content $transformed
+            $fixed = Set-SkillName -Content $content -SkillName $SkillName
+            if ($fixed -ne $content) {
+                Write-Host "    [name] normalized to '$SkillName'" -ForegroundColor Magenta
+                $stats.normalized++
+            }
+            $staged = Join-Path $TempDir 'SKILL.md.staged'
+            Set-Content -Path $staged -Value $fixed -NoNewline -Encoding utf8NoBOM
+            Copy-OutputFile -SourcePath $staged -DestPath (Join-Path $localBase 'SKILL.md')
+            Remove-Item $staged -Force
+        }
+        else {
+            Copy-OutputFile -SourcePath $item.FullName -DestPath (Join-Path $localBase $item.Name)
         }
     }
 }
 
 # --- Main sync ---
-$skillFolders = Get-ChildItem $SourceRoot -Directory
-$skills = $skillFolders | Where-Object { $_.Name -notlike 'principle-*' }
-$principles = $skillFolders | Where-Object { $_.Name -like 'principle-*' }
+$upstream = Get-ChildItem $SourceRoot -Directory | Sort-Object Name
+$skills = $upstream | Where-Object { $_.Name -notlike 'principle-*' }
+$principles = $upstream | Where-Object { $_.Name -like 'principle-*' }
 
-Write-Host "  Found $($skillFolders.Count) skills ($($skills.Count) skills, $($principles.Count) principles)" -ForegroundColor Gray
+Write-Host "  Found $($upstream.Count) skills ($($skills.Count) skills, $($principles.Count) principles)" -ForegroundColor Gray
 
 Write-Host "  Syncing skills..." -ForegroundColor Gray
 foreach ($s in $skills) {
-    Sync-SkillFolder -SourceDir $s.FullName -SkillName $s.Name -Category 'skills'
+    Sync-SkillFolder -SourceDir $s.FullName -SkillName $s.Name
 }
 
 Write-Host "  Syncing principles..." -ForegroundColor Gray
 foreach ($p in $principles) {
-    Sync-SkillFolder -SourceDir $p.FullName -SkillName $p.Name -Category 'principles'
+    Sync-SkillFolder -SourceDir $p.FullName -SkillName $p.Name
+}
+
+# --- Orphan detection ---
+$orphans = @()
+if (Test-Path $SkillsRoot) {
+    $upstreamNames = @($upstream | Select-Object -ExpandProperty Name)
+    $orphans = @(Get-ChildItem $SkillsRoot -Directory | Where-Object { $upstreamNames -notcontains $_.Name })
 }
 
 # --- Cleanup temp ---
@@ -272,15 +222,15 @@ Remove-Item $TempDir -Recurse -Force
 # --- Summary ---
 Write-Host ""
 Write-Host "  Done." -ForegroundColor Green
-Write-Host "    Created:   $($stats.created)" -ForegroundColor Green
-Write-Host "    Updated:   $($stats.updated)" -ForegroundColor Yellow
-Write-Host "    Unchanged: $($stats.unchanged)" -ForegroundColor Gray
-Write-Host "    Support:   $($stats.support) (playbooks/references as .md.txt)" -ForegroundColor Gray
-Write-Host "    Output:    $SteeringRoot" -ForegroundColor Cyan
+Write-Host "    Created:    $($stats.created)" -ForegroundColor Green
+Write-Host "    Updated:    $($stats.updated)" -ForegroundColor Yellow
+Write-Host "    Unchanged:  $($stats.unchanged)" -ForegroundColor Gray
+Write-Host "    Normalized: $($stats.normalized) skill name(s)" -ForegroundColor Magenta
+Write-Host "    Output:     $SkillsRoot" -ForegroundColor Cyan
 
-if ($IncludeAlways.Count -gt 0) {
-    Write-Host "    Always-on: $($IncludeAlways -join ', ')" -ForegroundColor Magenta
-}
-if ($IncludeAuto.Count -gt 0) {
-    Write-Host "    Auto:      $($IncludeAuto -join ', ')" -ForegroundColor Blue
+if ($orphans.Count -gt 0) {
+    Write-Host ""
+    Write-Host "  $($orphans.Count) local skill(s) no longer exist upstream:" -ForegroundColor Yellow
+    foreach ($o in $orphans) { Write-Host "    $($o.Name)" -ForegroundColor Yellow }
+    Write-Host "  Remove with: git rm -r $(($orphans | ForEach-Object { "skills/$($_.Name)" }) -join ' ')" -ForegroundColor Gray
 }
