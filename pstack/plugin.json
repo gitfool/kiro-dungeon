@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "pstack",
-  "version": "1.0.0",
-  "description": "Rigorous engineering skills and principles from the Cursor plugin pstack by Lauren Tan, packaged as a Kiro power.",
+  "version": "0.14.1",
+  "description": "Rigorous engineering skills and principles from the Cursor plugin pstack by Lauren Tan.",
   "author": {
     "name": "Sean Fausett",
     "url": "https://github.com/gitfool"

@@ -57,8 +57,13 @@ AGENTS_TO_CONVERT=(comment-sicko)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_ROOT="$SCRIPT_DIR/skills"
 
-echo "sync-pstack: $REPOSITORY@$BRANCH ($BASE_PATH)"
-if [ "$DRY_RUN" = true ]; then echo "  [DRY RUN]"; fi
+GREEN="\033[0;32m"
+BLUE="\033[0;34m"
+YELLOW="\033[0;33m"
+RESET="\033[0m"
+
+echo -e "${GREEN}sync-pstack: $REPOSITORY@$BRANCH ($BASE_PATH)${RESET}"
+if [ "$DRY_RUN" = true ]; then echo -e "  ${YELLOW}[DRY RUN]${RESET}"; fi
 
 # --- Download and extract archive ---
 # Uses the tarball rather than the zip, since tar is always present while unzip
@@ -67,7 +72,7 @@ if [ "$DRY_RUN" = true ]; then echo "  [DRY RUN]"; fi
 TEMP_DIR=$(mktemp -d)
 TARBALL_PATH="$TEMP_DIR/archive.tar.gz"
 
-echo "  Downloading archive..."
+echo -e "${BLUE}  Downloading archive...${RESET}"
 ARCHIVE_URL="https://github.com/$REPOSITORY/archive/refs/heads/$BRANCH.tar.gz"
 GH_TOKEN="${GH_TOKEN:-$(gh auth token 2>/dev/null || true)}"
 CURL_OPTS=(-fsSL)
@@ -80,7 +85,7 @@ if ! curl "${CURL_OPTS[@]}" "$ARCHIVE_URL" -o "$TARBALL_PATH"; then
     exit 1
 fi
 
-echo "  Extracting..."
+echo -e "${BLUE}  Extracting...${RESET}"
 tar -xzf "$TARBALL_PATH" -C "$TEMP_DIR"
 rm "$TARBALL_PATH"
 
@@ -228,12 +233,12 @@ done
 
 echo "  Found $((${#SKILLS[@]} + ${#PRINCIPLES[@]})) skills (${#SKILLS[@]} skills, ${#PRINCIPLES[@]} principles)"
 
-echo "  Syncing skills..."
+echo -e "${BLUE}  Syncing skills...${RESET}"
 for s in "${SKILLS[@]}"; do
     sync_skill_folder "$SOURCE_ROOT/$s" "$s"
 done
 
-echo "  Syncing principles..."
+echo -e "${BLUE}  Syncing principles...${RESET}"
 for p in "${PRINCIPLES[@]}"; do
     sync_skill_folder "$SOURCE_ROOT/$p" "$p"
 done
@@ -244,7 +249,7 @@ STAT_AGENTS_CONVERTED=0
 STAT_AGENTS_SKIPPED=0
 
 if [ -d "$AGENTS_ROOT" ]; then
-    echo "  Syncing agents as skills..."
+    echo -e "${BLUE}  Syncing agents as skills...${RESET}"
     for af in "$AGENTS_ROOT"/*.md; do
         if [ ! -f "$af" ]; then continue; fi
         agent_name=$(basename "$af" .md)
@@ -296,7 +301,7 @@ rm -rf "$TEMP_DIR"
 
 # --- Summary ---
 echo ""
-echo "  Done."
+echo -e "${GREEN}  Done.${RESET}"
 echo "    Created:    $STAT_CREATED"
 echo "    Updated:    $STAT_UPDATED"
 echo "    Unchanged:  $STAT_UNCHANGED"

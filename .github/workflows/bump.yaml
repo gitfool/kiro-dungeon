@@ -1,0 +1,30 @@
+name: bump
+on:
+  schedule:
+    # run every 12 hours
+    - cron: "0 */12 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+          filter: tree:0
+          show-progress: false
+
+      - name: Bump versions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./.github/scripts/bump.sh
