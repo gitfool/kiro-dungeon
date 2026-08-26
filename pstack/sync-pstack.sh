@@ -1,10 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# sync-pstack.sh — Mirrors pstack skills from GitHub into this power's skills/ directory.
+# sync-pstack.sh — Mirrors pstack skills and selected agents from GitHub into
+# this power's skills/ directory.
 #
 # Downloads the pstack plugin from the cursor/plugins repo and mirrors its
 # skills into ./skills/, so this directory can be installed as a Kiro power.
+#
+# Additionally, selected agent definitions from the upstream agents/ directory
+# are converted to skills. The AGENTS_TO_CONVERT list controls which agents are
+# included; others (like poteto-agent, which is a routing stub) are skipped.
+# Conversion strips agent-specific frontmatter (is_background), normalizes the
+# name, and adds disable-model-invocation: true so the skill only fires on
+# explicit request.
 #
 # Content is copied verbatim apart from one fix. The Agent Skills spec requires
 # each skill's name field to match its directory name exactly, and upstream
@@ -39,6 +47,11 @@ done
 REPOSITORY="cursor/plugins"
 BRANCH="main"
 BASE_PATH="pstack/skills"
+AGENTS_PATH="pstack/agents"
+
+# Agents to convert to skills. Others (e.g. poteto-agent) are skipped because
+# they're routing stubs with no standalone value.
+AGENTS_TO_CONVERT=(comment-sicko)
 
 # --- Paths ---
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -56,7 +69,12 @@ TARBALL_PATH="$TEMP_DIR/archive.tar.gz"
 
 echo "  Downloading archive..."
 ARCHIVE_URL="https://github.com/$REPOSITORY/archive/refs/heads/$BRANCH.tar.gz"
-if ! curl -fsSL "$ARCHIVE_URL" -o "$TARBALL_PATH"; then
+GH_TOKEN="${GH_TOKEN:-$(gh auth token 2>/dev/null || true)}"
+CURL_OPTS=(-fsSL)
+if [ -n "$GH_TOKEN" ]; then
+    CURL_OPTS+=(-H "Authorization: token $GH_TOKEN")
+fi
+if ! curl "${CURL_OPTS[@]}" "$ARCHIVE_URL" -o "$TARBALL_PATH"; then
     echo "Error: Failed to download archive" >&2
     rm -rf "$TEMP_DIR"
     exit 1
@@ -103,7 +121,7 @@ STAT_NORMALIZED=0
 copy_output_file() {
     local source_path="$1"
     local dest_path="$2"
-    local relative_path="./${dest_path#$SCRIPT_DIR/}"
+    local relative_path="./${dest_path#"$SCRIPT_DIR"/}"
 
     if [ -f "$dest_path" ]; then
         if diff -q <(tr -d '\r' < "$source_path") <(tr -d '\r' < "$dest_path") >/dev/null 2>&1; then
@@ -169,6 +187,32 @@ sync_skill_folder() {
     done
 }
 
+# --- Convert an agent .md to a skill SKILL.md ---
+# Strips agent-specific frontmatter fields (is_background), normalizes the
+# name, and adds disable-model-invocation: true so the skill only activates on
+# explicit request.
+convert_agent_to_skill() {
+    local source_file="$1"
+    local skill_name="$2"
+    local dest_file="$3"
+
+    awk -v name="$skill_name" '
+        BEGIN { fm = 0; added_dmi = 0 }
+        /^---[[:space:]]*$/ {
+            fm++
+            if (fm == 2 && !added_dmi) {
+                print "disable-model-invocation: true"
+            }
+            print
+            next
+        }
+        fm == 1 && /^name:/ { print "name: " name; next }
+        fm == 1 && /^is_background:/ { next }
+        fm == 1 && /^disable-model-invocation:/ { added_dmi = 1; print; next }
+        { print }
+    ' "$source_file" > "$dest_file"
+}
+
 # --- Main sync ---
 SKILLS=()
 PRINCIPLES=()
@@ -194,15 +238,56 @@ for p in "${PRINCIPLES[@]}"; do
     sync_skill_folder "$SOURCE_ROOT/$p" "$p"
 done
 
+# --- Sync agents (converted to skills) ---
+AGENTS_ROOT="$EXTRACTED_ROOT/$AGENTS_PATH"
+STAT_AGENTS_CONVERTED=0
+STAT_AGENTS_SKIPPED=0
+
+if [ -d "$AGENTS_ROOT" ]; then
+    echo "  Syncing agents as skills..."
+    for af in "$AGENTS_ROOT"/*.md; do
+        if [ ! -f "$af" ]; then continue; fi
+        agent_name=$(basename "$af" .md)
+
+        # Check if this agent is in the convert list
+        found=false
+        for a in "${AGENTS_TO_CONVERT[@]}"; do
+            if [ "$a" = "$agent_name" ]; then found=true; break; fi
+        done
+
+        if [ "$found" = false ]; then
+            echo "    [skipped] agents/$(basename "$af") (not in convert list)"
+            STAT_AGENTS_SKIPPED=$((STAT_AGENTS_SKIPPED + 1))
+            continue
+        fi
+
+        echo "    [convert] agents/$(basename "$af") -> skills/$agent_name/SKILL.md"
+        STAT_AGENTS_CONVERTED=$((STAT_AGENTS_CONVERTED + 1))
+
+        local_staged="$TEMP_DIR/SKILL.md.agent-staged"
+        convert_agent_to_skill "$af" "$agent_name" "$local_staged"
+        copy_output_file "$local_staged" "$SKILLS_ROOT/$agent_name/SKILL.md"
+        rm -f "$local_staged"
+    done
+else
+    echo "  No agents/ directory found upstream, skipping."
+fi
+
 # --- Orphan detection ---
 ORPHANS=()
 if [ -d "$SKILLS_ROOT" ]; then
     for dir in "$SKILLS_ROOT"/*/; do
         if [ ! -d "$dir" ]; then continue; fi
         name=$(basename "$dir")
-        if [ ! -d "$SOURCE_ROOT/$name" ]; then
-            ORPHANS+=("$name")
-        fi
+        # Skip if it exists upstream in skills/
+        if [ -d "$SOURCE_ROOT/$name" ]; then continue; fi
+        # Skip if it's an agent-converted skill
+        found=false
+        for a in "${AGENTS_TO_CONVERT[@]}"; do
+            if [ "$a" = "$name" ]; then found=true; break; fi
+        done
+        if [ "$found" = true ]; then continue; fi
+        ORPHANS+=("$name")
     done
 fi
 
@@ -216,6 +301,7 @@ echo "    Created:    $STAT_CREATED"
 echo "    Updated:    $STAT_UPDATED"
 echo "    Unchanged:  $STAT_UNCHANGED"
 echo "    Normalized: $STAT_NORMALIZED skill name(s)"
+echo "    Agents:     $STAT_AGENTS_CONVERTED converted, $STAT_AGENTS_SKIPPED skipped"
 echo "    Output:     $SKILLS_ROOT"
 
 if [ ${#ORPHANS[@]} -gt 0 ]; then

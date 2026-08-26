@@ -1,11 +1,18 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Mirrors pstack skills from GitHub into this power's skills/ directory.
+    Mirrors pstack skills and selected agents from GitHub into this power's skills/ directory.
 
 .DESCRIPTION
     Downloads the pstack plugin from the cursor/plugins repo and mirrors its
     skills into ./skills/, so this directory can be installed as a Kiro power.
+
+    Additionally, selected agent definitions from the upstream agents/ directory
+    are converted to skills. The $AgentsToConvert list controls which agents are
+    included; others (like poteto-agent, which is a routing stub) are skipped.
+    Conversion strips agent-specific frontmatter (is_background), normalizes the
+    name, and adds disable-model-invocation: true so the skill only fires on
+    explicit request.
 
     Content is copied verbatim apart from one fix. The Agent Skills spec
     requires each skill's name field to match its directory name exactly, and
@@ -40,6 +47,11 @@ $ErrorActionPreference = 'Stop'
 $Repository = 'cursor/plugins'
 $Branch = 'main'
 $BasePath = 'pstack/skills'
+$AgentsPath = 'pstack/agents'
+
+# Agents to convert to skills. Others (e.g. poteto-agent) are skipped because
+# they're routing stubs with no standalone value.
+$AgentsToConvert = @('comment-sicko')
 
 # --- Paths ---
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
@@ -54,10 +66,13 @@ $ZipPath = "$TempDir.zip"
 
 Write-Host "  Downloading archive..." -ForegroundColor Gray
 $archiveUrl = "https://github.com/$Repository/archive/refs/heads/$Branch.zip"
+$ghToken = if ($env:GH_TOKEN) { $env:GH_TOKEN } else { gh auth token 2>$null }
+$headers = @{}
+if ($ghToken) { $headers['Authorization'] = "token $ghToken" }
 $prevProgress = $ProgressPreference
 $ProgressPreference = 'SilentlyContinue'
 try {
-    Invoke-WebRequest -Uri $archiveUrl -OutFile $ZipPath -UseBasicParsing
+    Invoke-WebRequest -Headers $headers -Uri $archiveUrl -OutFile $ZipPath -UseBasicParsing
 }
 catch {
     $ProgressPreference = $prevProgress
@@ -192,6 +207,36 @@ function Sync-SkillFolder {
     }
 }
 
+# --- Convert an agent .md to a skill SKILL.md ---
+# Strips agent-specific frontmatter fields (is_background) and normalizes the
+# name to match the target skill directory. Adds disable-model-invocation: true
+# so the skill only activates on explicit request.
+function Convert-AgentToSkill {
+    param(
+        [string]$Content,
+        [string]$SkillName
+    )
+
+    $match = [regex]::Match($Content, '\A(---\s*\r?\n)(.*?)(\r?\n---\s*\r?\n)', [System.Text.RegularExpressions.RegexOptions]::Singleline)
+    if (-not $match.Success) { return $Content }
+
+    $frontMatter = $match.Groups[2].Value
+    $body = $Content.Substring($match.Length)
+
+    # Normalize name
+    $frontMatter = [regex]::Replace($frontMatter, '(?m)^name:.*$', "name: $SkillName")
+
+    # Strip agent-specific fields
+    $frontMatter = [regex]::Replace($frontMatter, '(?m)^is_background:.*\r?\n?', '')
+
+    # Add disable-model-invocation if not present
+    if ($frontMatter -notmatch 'disable-model-invocation') {
+        $frontMatter = $frontMatter.TrimEnd() + "`ndisable-model-invocation: true"
+    }
+
+    return $match.Groups[1].Value + $frontMatter + $match.Groups[3].Value + $body
+}
+
 # --- Main sync ---
 $upstream = Get-ChildItem $SourceRoot -Directory | Sort-Object Name
 $skills = $upstream | Where-Object { $_.Name -notlike 'principle-*' }
@@ -209,10 +254,44 @@ foreach ($p in $principles) {
     Sync-SkillFolder -SourceDir $p.FullName -SkillName $p.Name
 }
 
+# --- Sync agents (converted to skills) ---
+$AgentsRoot = Join-Path $extractedRoot.FullName $AgentsPath
+$agentStats = @{ converted = 0; skipped = 0 }
+
+if (Test-Path $AgentsRoot) {
+    Write-Host "  Syncing agents as skills..." -ForegroundColor Gray
+    $agentFiles = Get-ChildItem $AgentsRoot -Filter '*.md' | Sort-Object Name
+
+    foreach ($af in $agentFiles) {
+        $agentName = $af.BaseName  # filename without .md
+        if ($AgentsToConvert -notcontains $agentName) {
+            Write-Host "    [skipped] agents/$($af.Name) (not in convert list)" -ForegroundColor DarkGray
+            $agentStats.skipped++
+            continue
+        }
+
+        Write-Host "    [convert] agents/$($af.Name) -> skills/$agentName/SKILL.md" -ForegroundColor Cyan
+        $agentStats.converted++
+
+        $content = Get-Content $af.FullName -Raw
+        $skillContent = Convert-AgentToSkill -Content $content -SkillName $agentName
+
+        $staged = Join-Path $TempDir 'SKILL.md.agent-staged'
+        Set-Content -Path $staged -Value $skillContent -NoNewline -Encoding utf8NoBOM
+        Copy-OutputFile -SourcePath $staged -DestPath (Join-Path $SkillsRoot "$agentName\SKILL.md")
+        Remove-Item $staged -Force
+    }
+}
+else {
+    Write-Host "  No agents/ directory found upstream, skipping." -ForegroundColor DarkGray
+}
+
 # --- Orphan detection ---
 $orphans = @()
 if (Test-Path $SkillsRoot) {
     $upstreamNames = @($upstream | Select-Object -ExpandProperty Name)
+    # Agent-converted skills are not orphans
+    $upstreamNames += $AgentsToConvert
     $orphans = @(Get-ChildItem $SkillsRoot -Directory | Where-Object { $upstreamNames -notcontains $_.Name })
 }
 
@@ -226,6 +305,7 @@ Write-Host "    Created:    $($stats.created)" -ForegroundColor Green
 Write-Host "    Updated:    $($stats.updated)" -ForegroundColor Yellow
 Write-Host "    Unchanged:  $($stats.unchanged)" -ForegroundColor Gray
 Write-Host "    Normalized: $($stats.normalized) skill name(s)" -ForegroundColor Magenta
+Write-Host "    Agents:     $($agentStats.converted) converted, $($agentStats.skipped) skipped" -ForegroundColor Cyan
 Write-Host "    Output:     $SkillsRoot" -ForegroundColor Cyan
 
 if ($orphans.Count -gt 0) {
