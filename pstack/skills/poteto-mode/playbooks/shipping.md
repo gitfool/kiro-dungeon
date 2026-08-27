@@ -1,3 +1,5 @@
+> **Kiro compatibility:** Not operational on Kiro. Requires Graphite stack model and cloud agents for per-PR verification. Read for methodology only.
+
 ### Shipping
 
 **You own what lands. Verify each PR independently, land only the verified run from the root, then keep your hands off the queue.** For "land the stack", "ship it", "enable merge when ready", or the second half of a stack that **Babysit** already drove to green.

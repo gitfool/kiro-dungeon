@@ -1,3 +1,5 @@
+> **Kiro compatibility:** References Cursor worktree layout. On Kiro, use `git worktree list` directly and skip `.cursor/worktrees/` references.
+
 ### Worktree and simulator cleanup
 
 **You own the disk and the safety gate.** Prune merged or abandoned git worktrees and stale iOS simulators to reclaim space. Deletion is irreversible, so every step guards against deleting something in use or holding uncommitted work.

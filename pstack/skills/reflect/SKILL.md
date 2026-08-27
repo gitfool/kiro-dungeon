@@ -4,6 +4,9 @@ description: Spawn three parallel review subagents over the active transcript, s
 disable-model-invocation: true
 ---
 
+> **Kiro compatibility:** Not operational on Kiro. Requires Cursor transcript file access for learning extraction. No equivalent mechanism exists.
+
+
 # Reflect
 
 Mine the current conversation for durable learnings, then route them into skill edits.

@@ -1,3 +1,5 @@
+> **Kiro compatibility:** Not operational on Kiro. Requires Cursor transcript file access for session resumption.
+
 ### Session pickup
 
 **You own the resume point. Read the prior trail, don't redo it.** For "take over this", "resume this conversation", "continue from <transcript path>", "you're taking over", "pick up where X left off", a cloud-agent URL handoff, or a pushed branch you're meant to continue.

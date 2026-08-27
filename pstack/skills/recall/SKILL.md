@@ -4,6 +4,9 @@ description: "Reconstruct your recent working context from your own chat history
 disable-model-invocation: true
 ---
 
+> **Kiro compatibility:** Not operational on Kiro. Requires Cursor transcript file access for context reconstruction. No equivalent mechanism exists.
+
+
 # Recall
 
 **Before you start or resume work, you rebuild the user's recent working context and hand back a tight capsule of where things stand now and what to do next.** Use for "recall my work on X", "catch me up", "what have I been working on", or "where did I leave off".

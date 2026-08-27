@@ -1,3 +1,5 @@
+> **Kiro compatibility:** Not operational on Kiro. Requires Cursor cloud agents and Graphite for autonomous merge. Read for methodology only.
+
 ### Autopilot-full
 
 **You own the verdicts, never the PRs. One owner runs each PR from build to merge, and nothing merges without your clean swarm verdict.** For "autopilot this queue", "full autopilot", and one-owner-per-PR programs. The job is a queue of independent PRs handed over to drive to merged with full autonomy. Orchestrate runs a standing program whose coordinator lands verified work itself and whose workers never merge; here each PR's owner carries the whole lifecycle through the merge, and the root keeps only verification, countersigns, and audits.

@@ -1,3 +1,5 @@
+> **Kiro compatibility:** Not operational on Kiro. References Cursor restart and transcript persistence behavior. On Kiro, session state is managed by the platform.
+
 ### Pause safely
 
 **You own a clean stop. Leave a checkpoint a cold-start agent can resume from.** For "pause safely", "I need to go offline", "restart Cursor", or "board my flight", and when context is about to compact or summarize. This is explicit only. On "keep going", "going to bed, keep going", or "don't stop", do not pause. Those mean continue, and Autonomous run already checkpoints per iteration.
