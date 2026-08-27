@@ -26,10 +26,10 @@ Then copy the steering file to your global steering directory:
 
 ```bash
 # macOS / Linux
-cp steering/pstack.md ~/.kiro/steering/pstack.md
+cp ~/.kiro/powers/installed/pstack/steering/pstack.md ~/.kiro/steering/pstack.md
 
 # Windows (PowerShell)
-Copy-Item steering\pstack.md "$env:USERPROFILE\.kiro\steering\pstack.md"
+Copy-Item "$env:USERPROFILE\.kiro\powers\installed\pstack\steering\pstack.md" "$env:USERPROFILE\.kiro\steering\pstack.md"
 ```
 
 This does two things:
