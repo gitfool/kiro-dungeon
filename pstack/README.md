@@ -22,6 +22,21 @@ https://github.com/gitfool/kiro-dungeon/tree/main/pstack
 
 To install a local checkout instead, choose **Import power from a folder** and select the `pstack` directory.
 
+Then copy the steering file to your global steering directory:
+
+```bash
+# macOS / Linux
+cp steering/pstack.md ~/.kiro/steering/pstack.md
+
+# Windows (PowerShell)
+Copy-Item steering\pstack.md "$env:USERPROFILE\.kiro\steering\pstack.md"
+```
+
+This does two things:
+
+1. Activates the **unslop** skill on every turn, so all prose output follows its rules without needing a keyword.
+2. Provides **Cursor compatibility rules** that tell the agent how to interpret Cursor-specific terminology in pstack skills (sub-agent APIs, file paths, tool names). Since pstack was written for Cursor, these interpretation rules let the agent adapt the instructions to Kiro at read time rather than relying on brittle text substitutions.
+
 ## Usage
 
 Skills activate when you include a power keyword in your message: `poteto`, `pstack`, `unslop`, `rigorous engineering`, or `engineering principles`. Prefix your request with a keyword, optionally naming the skill you want.
@@ -38,29 +53,24 @@ unslop the README
 
 `unslop` is both a keyword and a skill name, so it needs no prefix.
 
-## Making a skill always-on
-
-Power skills activate on keyword, not every turn. To make one always-on, ask Kiro to create a global steering file. For example:
-
-> Create a global steering file that always applies pstack's unslop skill
-
-That writes a small file to `~/.kiro/steering/` with `inclusion: always` and a directive referring to the skill. The keyword in the directive triggers the power, and the agent loads the skill every turn without being asked.
-
 ## What does not carry over from Cursor
 
-Skills, playbooks, principles, and reference material all port cleanly. These do not:
+Skills, playbooks, principles, and reference material all port cleanly. The global steering file (`steering/pstack.md`) handles most Cursor terminology at read time. These remain as limitations:
 
 - **Explicit-only invocation.** Most pstack skills set `disable-model-invocation: true` so that `/poteto-mode` decides what runs. In this power, the keyword gate serves a similar role: skills only activate when you mention a keyword. However, once activated all skills in the power become available to the agent for that turn, rather than only the one the hub selects. Raised as [kirodotdev/Kiro#10985](https://github.com/kirodotdev/Kiro/issues/10985).
-- **Per-role model routing.** Cursor's `/setup-pstack` maps roles to different models. Kiro uses one model per turn, so skills fall back to their documented defaults.
-- **Subagent routing.** References to `subagent_type: "poteto-agent"` have no Kiro equivalent.
-- **Cursor built-ins.** Skills that reach for `/loop`, `/create-skill`, `deslop`, `control-cli`, or `control-ui` need those separately. The last three ship in Cursor's `cursor-team-kit`, not in pstack.
+- **Per-role model routing.** Skills prescribe different models per sub-agent role. Kiro does not support per-sub-agent model override ([kirodotdev/Kiro#6637](https://github.com/kirodotdev/Kiro/issues/6637)). Kiro Crew `spawn_run` does support this. Skills degrade gracefully to using the session model for all sub-agents.
+- **Cursor built-ins.** Skills referencing `control-cli`, `control-ui`, or other `cursor-team-kit` tools have no Kiro equivalent. The steering file instructs the agent to skip these when unavailable.
+- **Transcript mining.** The `recall` and `reflect` skills depend on Cursor's JSONL transcripts and are not operational on Kiro. `show-me-your-work` works except for its transcript audit step, which should be skipped.
+- **Deeply coupled playbooks.** `orchestrate`, `shipping`, `autopilot-full`, `autopilot-stack`, `session-pickup`, and `pause-safely` depend on Cursor cloud agents and tooling. They carry guards and are preserved for methodology reference only.
 
 ## Structure
 
 ```
 pstack/
 ├── plugin.json                 ← power manifest
-├── skills/                     ← mirror of upstream pstack/skills
+├── steering/
+│   └── pstack.md               ← global steering
+├── skills/                     ← mirror of upstream
 │   ├── poteto-mode/
 │   │   ├── SKILL.md
 │   │   ├── playbooks/
@@ -69,8 +79,7 @@ pstack/
 │   ├── principle-laziness-protocol/
 │   │   └── SKILL.md
 │   └── ...
-├── sync-pstack.ps1             ← maintainer tool
-└── sync-pstack.sh
+└── sync-pstack.sh              ← maintainer tool
 ```
 
 Principles keep their upstream `principle-` prefix and sit alongside the other skills, because the spec requires every skill to be an immediate child of `skills/`.

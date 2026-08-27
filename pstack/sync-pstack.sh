@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # sync-pstack.sh — Mirrors pstack skills and selected agents from GitHub into
-# this power's skills/ directory.
+# this power skills/ directory.
 #
 # Downloads the pstack plugin from the cursor/plugins repo and mirrors its
 # skills into ./skills/, so this directory can be installed as a Kiro power.
@@ -19,6 +19,15 @@ set -euo pipefail
 # poteto-mode declares "Poteto Mode". Kiro rejects skills whose name does not
 # match, silently, so the name is normalized during the sync. See
 # https://github.com/cursor/plugins/issues/237.
+#
+# After syncing, a Kiro compatibility pass applies guards to skills that
+# need prerequisites or are not operational on Kiro. Content-level Cursor
+# terminology (Task calls, subagent_type, ~/.cursor/ paths, etc.) is NOT
+# rewritten by this script; instead, a global steering file
+# (steering/pstack.md) provides interpretation rules the agent applies
+# at read time. This avoids brittle regex substitutions on varied prose.
+# Skills that are entirely Cursor-specific (grokbot, setup-pstack) are
+# excluded from the sync entirely.
 #
 # Support directories (playbooks, references, scripts) are mirrored as-is.
 # Only immediate subdirectories of skills/ are treated as skills, so nested
@@ -52,6 +61,9 @@ AGENTS_PATH="pstack/agents"
 # Agents to convert to skills. Others (e.g. poteto-agent) are skipped because
 # they're routing stubs with no standalone value.
 AGENTS_TO_CONVERT=(comment-sicko)
+
+# Skills to exclude entirely (Cursor-specific, no Kiro equivalent).
+SKILLS_TO_EXCLUDE=(grokbot setup-pstack)
 
 # --- Paths ---
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -218,6 +230,33 @@ convert_agent_to_skill() {
     ' "$source_file" > "$dest_file"
 }
 
+# --- Kiro guards ---
+# Prepends a compatibility note after the frontmatter closing '---'.
+# Usage: prepend_kiro_guard <file> <guard_text>
+prepend_kiro_guard() {
+    local file="$1"
+    local guard="$2"
+    local tmp="$file.kiro-tmp"
+
+    awk -v guard="$guard" '
+        BEGIN { fm = 0; done = 0 }
+        /^---[[:space:]]*$/ {
+            fm++
+            print
+            if (fm == 2 && !done) {
+                print ""
+                print "> **Kiro compatibility:** " guard
+                print ""
+                done = 1
+            }
+            next
+        }
+        { print }
+    ' "$file" > "$tmp"
+
+    mv "$tmp" "$file"
+}
+
 # --- Main sync ---
 SKILLS=()
 PRINCIPLES=()
@@ -225,6 +264,15 @@ PRINCIPLES=()
 for dir in "$SOURCE_ROOT"/*/; do
     if [ ! -d "$dir" ]; then continue; fi
     name=$(basename "$dir")
+    # Skip excluded skills (Cursor-specific, no Kiro equivalent)
+    skip=false
+    for ex in "${SKILLS_TO_EXCLUDE[@]}"; do
+        if [ "$ex" = "$name" ]; then skip=true; break; fi
+    done
+    if [ "$skip" = true ]; then
+        echo "    [excluded] $name (Cursor-specific)"
+        continue
+    fi
     case "$name" in
         principle-*) PRINCIPLES+=("$name") ;;
         *)           SKILLS+=("$name") ;;
@@ -292,12 +340,88 @@ if [ -d "$SKILLS_ROOT" ]; then
             if [ "$a" = "$name" ]; then found=true; break; fi
         done
         if [ "$found" = true ]; then continue; fi
+        # Skip excluded skills (they're intentionally not synced)
+        for ex in "${SKILLS_TO_EXCLUDE[@]}"; do
+            if [ "$ex" = "$name" ]; then found=true; break; fi
+        done
+        if [ "$found" = true ]; then continue; fi
         ORPHANS+=("$name")
     done
 fi
 
 # --- Cleanup temp ---
 rm -rf "$TEMP_DIR"
+
+# --- Kiro transform pass ---
+# Applies guards to skills/playbooks that need them. Content transforms are
+# handled by the global steering file (see steering/pstack.md) rather
+# than by sed, because prose varies too much for reliable regex substitution.
+STAT_GUARDED=0
+
+if [ -d "$SKILLS_ROOT" ]; then
+    echo -e "${BLUE}  Applying Kiro guards...${RESET}"
+
+    # Short-circuit guards for skills with partial limitations
+    declare -A TIER1_GUARDS=(
+        [show-me-your-work]="The transcript audit step requires session history access. Skip that step if unavailable."
+    )
+
+    for skill in "${!TIER1_GUARDS[@]}"; do
+        skill_file="$SKILLS_ROOT/$skill/SKILL.md"
+        if [ -f "$skill_file" ]; then
+            if [ "$DRY_RUN" = false ]; then
+                prepend_kiro_guard "$skill_file" "${TIER1_GUARDS[$skill]}"
+            fi
+            echo "    [guard] $skill (partial limitation)"
+            STAT_GUARDED=$((STAT_GUARDED + 1))
+        fi
+    done
+
+    # Not-operational guards for skills/playbooks that cannot work on Kiro
+    declare -A TIER2_SKILL_GUARDS=(
+        [recall]="Not operational on Kiro. Requires Cursor transcript file access for context reconstruction. No equivalent mechanism exists."
+        [reflect]="Not operational on Kiro. Requires Cursor transcript file access for learning extraction. No equivalent mechanism exists."
+    )
+
+    for skill in "${!TIER2_SKILL_GUARDS[@]}"; do
+        skill_file="$SKILLS_ROOT/$skill/SKILL.md"
+        if [ -f "$skill_file" ]; then
+            if [ "$DRY_RUN" = false ]; then
+                prepend_kiro_guard "$skill_file" "${TIER2_SKILL_GUARDS[$skill]}"
+            fi
+            echo "    [guard] $skill (not operational)"
+            STAT_GUARDED=$((STAT_GUARDED + 1))
+        fi
+    done
+
+    declare -A TIER2_PLAYBOOK_GUARDS=(
+        [orchestrate]="Not operational on Kiro. Requires Cursor-specific orchestration tooling (cloud agents, orch.ts state CLI). Read for methodology only."
+        [shipping]="Not operational on Kiro. Requires Graphite stack model and cloud agents for per-PR verification. Read for methodology only."
+        [autopilot-full]="Not operational on Kiro. Requires Cursor cloud agents and Graphite for autonomous merge. Read for methodology only."
+        [autopilot-stack]="Not operational on Kiro. Requires Cursor cloud agents and Graphite for autonomous stack delivery. Read for methodology only."
+        [session-pickup]="Not operational on Kiro. Requires Cursor transcript file access for session resumption."
+        [pause-safely]="Not operational on Kiro. References Cursor restart and transcript persistence behavior. On Kiro, session state is managed by the platform."
+        [worktree-cleanup]="References Cursor worktree layout. On Kiro, use \`git worktree list\` directly and skip \`.cursor/worktrees/\` references."
+    )
+
+    for playbook in "${!TIER2_PLAYBOOK_GUARDS[@]}"; do
+        playbook_file="$SKILLS_ROOT/poteto-mode/playbooks/$playbook.md"
+        if [ -f "$playbook_file" ]; then
+            if [ "$DRY_RUN" = false ]; then
+                # Playbooks don't have frontmatter, so prepend the guard directly
+                tmp="$playbook_file.kiro-tmp"
+                {
+                    echo "> **Kiro compatibility:** ${TIER2_PLAYBOOK_GUARDS[$playbook]}"
+                    echo ""
+                    cat "$playbook_file"
+                } > "$tmp"
+                mv "$tmp" "$playbook_file"
+            fi
+            echo "    [guard] playbooks/$playbook (not operational)"
+            STAT_GUARDED=$((STAT_GUARDED + 1))
+        fi
+    done
+fi
 
 # --- Summary ---
 echo ""
@@ -307,6 +431,8 @@ echo "    Updated:    $STAT_UPDATED"
 echo "    Unchanged:  $STAT_UNCHANGED"
 echo "    Normalized: $STAT_NORMALIZED skill name(s)"
 echo "    Agents:     $STAT_AGENTS_CONVERTED converted, $STAT_AGENTS_SKIPPED skipped"
+echo "    Excluded:   ${#SKILLS_TO_EXCLUDE[@]} skill(s) (Cursor-specific)"
+echo "    Guards:     $STAT_GUARDED"
 echo "    Output:     $SKILLS_ROOT"
 
 if [ ${#ORPHANS[@]} -gt 0 ]; then
