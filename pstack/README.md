@@ -22,20 +22,22 @@ https://github.com/gitfool/kiro-dungeon/tree/main/pstack
 
 To install a local checkout instead, choose **Import power from a folder** and select the `pstack` directory.
 
-Then copy the steering file to your global steering directory:
+Then copy the steering files to your global steering directory:
 
 ```bash
 # macOS / Linux
-cp ~/.kiro/powers/installed/pstack/steering/pstack.md ~/.kiro/steering/pstack.md
+cp ~/.kiro/powers/installed/pstack/steering/*.md ~/.kiro/steering/
 
 # Windows (PowerShell)
-Copy-Item "$env:USERPROFILE\.kiro\powers\installed\pstack\steering\pstack.md" "$env:USERPROFILE\.kiro\steering\pstack.md"
+Copy-Item "$env:USERPROFILE\.kiro\powers\installed\pstack\steering\*.md" "$env:USERPROFILE\.kiro\steering\"
 ```
 
 This does two things:
 
 1. Activates the **unslop** skill on every turn, so all prose output follows its rules without needing a keyword.
-2. Provides **Cursor compatibility rules** that tell the agent how to interpret Cursor-specific terminology in pstack skills (sub-agent APIs, file paths, tool names). Since pstack was written for Cursor, these interpretation rules let the agent adapt the instructions to Kiro at read time rather than relying on brittle text substitutions.
+2. Provides **Cursor runtime rules** that tell the agent how to interpret Cursor-specific terminology in pstack skills, since pstack was written for Cursor. These interpretation rules let the agent adapt the instructions to Kiro at read time rather than relying on brittle text substitutions.
+
+These rules are split into two files. `cursor-runtime.md` is generic. It interprets Cursor runtime operations for any Cursor-origin plugin, so it is reusable beyond pstack. `pstack.md` layers on the mappings specific to pstack and its `cursor-team-kit` dependencies plus the always-applies directive. Install the generic file once; each Cursor-origin power you add can reuse it.
 
 ## Usage
 
@@ -55,11 +57,11 @@ unslop the README
 
 ## What does not carry over from Cursor
 
-Skills, playbooks, principles, and reference material all port cleanly. The global steering file (`steering/pstack.md`) handles most Cursor terminology at read time. These remain as limitations:
+Skills, playbooks, principles, and reference material all port cleanly. The global steering files (`steering/cursor-runtime.md` and `steering/pstack.md`) handle most Cursor terminology at read time. These remain as limitations:
 
 - **Explicit-only invocation.** Most pstack skills set `disable-model-invocation: true` so that `/poteto-mode` decides what runs. In this power, the keyword gate serves a similar role: skills only activate when you mention a keyword. However, once activated all skills in the power become available to the agent for that turn, rather than only the one the hub selects. Raised as [kirodotdev/Kiro#10985](https://github.com/kirodotdev/Kiro/issues/10985).
 - **Per-role model routing.** Skills prescribe different models per sub-agent role. Kiro does not support per-sub-agent model override ([kirodotdev/Kiro#6637](https://github.com/kirodotdev/Kiro/issues/6637)). Kiro Crew `spawn_run` does support this. Skills degrade gracefully to using the session model for all sub-agents.
-- **Cursor built-ins.** Skills referencing `control-cli`, `control-ui`, or other `cursor-team-kit` tools have no Kiro equivalent. The steering file instructs the agent to skip these when unavailable.
+- **Cursor built-ins.** Skills referencing `control-cli`, `control-ui`, or other `cursor-team-kit` tools have no Kiro equivalent. The pstack steering file instructs the agent to skip these when unavailable.
 - **Transcript mining.** The `recall` and `reflect` skills depend on Cursor's JSONL transcripts and are not operational on Kiro. `show-me-your-work` works except for its transcript audit step, which should be skipped.
 - **Deeply coupled playbooks.** `orchestrate`, `shipping`, `autopilot-full`, `autopilot-stack`, `session-pickup`, and `pause-safely` depend on Cursor cloud agents and tooling. They carry guards and are preserved for methodology reference only.
 
@@ -68,8 +70,9 @@ Skills, playbooks, principles, and reference material all port cleanly. The glob
 ```
 pstack/
 ├── plugin.json                 ← power manifest
-├── steering/
-│   └── pstack.md               ← global steering
+├── steering/                   ← global steering
+│   ├── cursor-runtime.md       ← generic Cursor runtime
+│   └── pstack.md               ← pstack-specific rules
 ├── skills/                     ← mirror of upstream
 │   ├── poteto-mode/
 │   │   ├── SKILL.md

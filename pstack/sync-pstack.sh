@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# sync-pstack.sh — Mirrors pstack skills and selected agents from GitHub into
-# this power skills/ directory.
+# sync-pstack.sh — Mirrors pstack skills and selected agents from GitHub into this
+# power skills/ directory.
 #
-# Downloads the pstack plugin from the cursor/plugins repo and mirrors its
-# skills into ./skills/, so this directory can be installed as a Kiro power.
+# Downloads the pstack plugin from the cursor/plugins repo and mirrors its skills
+# into ./skills/, so this directory can be installed as a Kiro power.
 #
 # Additionally, selected agent definitions from the upstream agents/ directory
 # are converted to skills. The AGENTS_TO_CONVERT list controls which agents are
@@ -20,18 +20,19 @@ set -euo pipefail
 # match, silently, so the name is normalized during the sync. See
 # https://github.com/cursor/plugins/issues/237.
 #
-# After syncing, a Kiro compatibility pass applies guards to skills that
-# need prerequisites or are not operational on Kiro. Content-level Cursor
-# terminology (Task calls, subagent_type, ~/.cursor/ paths, etc.) is NOT
-# rewritten by this script; instead, a global steering file
-# (steering/pstack.md) provides interpretation rules the agent applies
-# at read time. This avoids brittle regex substitutions on varied prose.
-# Skills that are entirely Cursor-specific (grokbot, setup-pstack) are
-# excluded from the sync entirely.
+# After syncing, a Kiro compatibility pass applies guards to skills that need
+# prerequisites or are not operational on Kiro. Content-level Cursor terminology
+# (Task calls, subagent_type, ~/.cursor/ paths, etc.) is NOT rewritten by this
+# script; instead, global steering files (steering/cursor-runtime.md for generic
+# Cursor runtime operations, steering/pstack.md for pstack-specific mappings)
+# provide interpretation rules the agent applies at read time. This avoids brittle
+# regex substitutions on varied prose.
+# Skills that are entirely Cursor-specific (grokbot, setup-pstack) are excluded
+# from the sync entirely.
 #
-# Support directories (playbooks, references, scripts) are mirrored as-is.
-# Only immediate subdirectories of skills/ are treated as skills, so nested
-# markdown is never loaded and needs no special handling.
+# Support directories (playbooks, references, scripts) are mirrored as-is. Only
+# immediate subdirectories of skills/ are treated as skills, so nested markdown
+# is never loaded and needs no special handling.
 #
 # This is a maintainer tool, not an installer. Run it to refresh skills/ when
 # upstream changes, then commit the result.
@@ -205,9 +206,9 @@ sync_skill_folder() {
 }
 
 # --- Convert an agent .md to a skill SKILL.md ---
-# Strips agent-specific frontmatter fields (is_background), normalizes the
-# name, and adds disable-model-invocation: true so the skill only activates on
-# explicit request.
+# Strips agent-specific frontmatter fields (is_background), normalizes the name,
+# and adds disable-model-invocation: true so the skill only activates on explicit
+# request.
 convert_agent_to_skill() {
     local source_file="$1"
     local skill_name="$2"
@@ -354,8 +355,9 @@ rm -rf "$TEMP_DIR"
 
 # --- Kiro transform pass ---
 # Applies guards to skills/playbooks that need them. Content transforms are
-# handled by the global steering file (see steering/pstack.md) rather
-# than by sed, because prose varies too much for reliable regex substitution.
+# handled by the global steering files (see steering/cursor-runtime.md and
+# steering/pstack.md) rather than by sed, because prose varies too much for
+# reliable regex substitution.
 STAT_GUARDED=0
 
 if [ -d "$SKILLS_ROOT" ]; then
