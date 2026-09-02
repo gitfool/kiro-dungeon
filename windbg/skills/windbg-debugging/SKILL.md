@@ -118,12 +118,19 @@ where its stderr is not on your screen.
 - **Symbol *names* (`module!func`) need three things together:** (a) `msdia140.dll` and
   `symsrv.dll` bundled next to the binary, (b) a symbol path — set it with the
   **`set_symbol_path`** tool (`srv*C:\ProgramData\Dbg\sym*https://msdl.microsoft.com/download/symbols`,
-  `append: true`), which goes through the DbgEng API and so avoids `.sympath` swallowing the
+  `append: true`, `for_new_sessions: true` when later sessions should inherit it), which goes
+  through the DbgEng API and so avoids `.sympath` swallowing the
   rest of the command line — and (c) a module-qualified `.reload /f <mod>` at a *stopped*
   position (bare `.reload /f` walks every loaded module, which on a live kernel is slow) (after a
   `go`/breakpoint, **not** straight off a `goto_position`/`!tt`). Without these you silently
   get export symbols only and `module!name` lookups fail. Address-based queries, navigation,
   and memory reads still work without symbols — query by address.
+- **A module missing from `modules` may be missing from the *debugger*, not from the target.** The
+  inventory is built from the loads the debugger saw, so a live kernel attach can list `nt` and
+  little else while the driver you are after is loaded and running. `modules { "refresh": true }`
+  resynchronises the two — inventory only, no PDB fetch — and reports what it did. On a live
+  target it discards symbols already loaded, so refresh **before** the symbol setup below, not
+  after.
 - **`file not found` for a PDB usually means the engine, not the path.** `dbgeng.dll` is in
   System32, so a binary with no DLLs beside it opens targets and runs commands happily — it
   just has no `symsrv.dll` to read a symbol store and no `msdia140.dll` to parse a PDB, and
