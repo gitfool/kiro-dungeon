@@ -1,5 +1,11 @@
 # Setup: build, engine bundling, symbols, elevation
 
+> **Kiro power note:** Installed as a Kiro power, the `windbg` MCP server and its WinDbg engine
+> dependencies both come from the `windbg-mcp` Scoop package, wired up by the power's `mcp.json`.
+> Disregard the upstream Claude Code plugin steps below — `${CLAUDE_PLUGIN_ROOT}`, `/reload-plugins`,
+> `claude mcp add`, and the manual engine-bundling copy — those are for the upstream plugin. The
+> symbol and elevation guidance below still applies. See the power README for install and updates.
+
 Most `windbg` failures are environment problems, not debugging mistakes. Work through the
 section for the workflow you're about to run before blaming the target.
 

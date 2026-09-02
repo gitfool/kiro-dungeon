@@ -178,11 +178,15 @@ sync_skill_folder() {
         elif [[ "$name" == *.md ]]; then
             # Rewrite to a temp file, then take the same compare/copy path as
             # every other file. A file with no ../../docs/ link comes through
-            # unchanged, so this stays byte-exact for those.
+            # unchanged, so this stays byte-exact for those. setup.md also gets
+            # the Kiro power note inserted after its title.
             local staged="$TEMP_DIR/$name.staged"
             rewrite_docs_links "$item" "$staged"
+            if [ "$name" = "setup.md" ]; then
+                insert_kiro_note "$staged"
+            fi
             if ! diff -q "$item" "$staged" >/dev/null 2>&1; then
-                echo "    [rewrite] $name (../../docs/ links -> upstream URL)"
+                echo "    [rewrite] $name"
                 STAT_REWRITTEN=$((STAT_REWRITTEN + 1))
             fi
             copy_output_file "$staged" "$local_base/$name"
@@ -191,6 +195,29 @@ sync_skill_folder() {
             copy_output_file "$item" "$local_base/$name"
         fi
     done
+}
+
+# --- Insert a Kiro power note after the setup.md title ---
+# The upstream setup guide documents the Claude Code plugin install flow, which
+# does not apply to this Scoop-based power. Insert a note after the first
+# heading steering the reader to the power README. Edits the file in place.
+insert_kiro_note() {
+    local file="$1"
+    local tmp="$file.note"
+    awk '
+        BEGIN { done = 0 }
+        { print }
+        !done && /^# / {
+            print ""
+            print "> **Kiro power note:** Installed as a Kiro power, the `windbg` MCP server and its WinDbg engine"
+            print "> dependencies both come from the `windbg-mcp` Scoop package, wired up by the power'\''s `mcp.json`."
+            print "> Disregard the upstream Claude Code plugin steps below — `${CLAUDE_PLUGIN_ROOT}`, `/reload-plugins`,"
+            print "> `claude mcp add`, and the manual engine-bundling copy — those are for the upstream plugin. The"
+            print "> symbol and elevation guidance below still applies. See the power README for install and updates."
+            done = 1
+        }
+    ' "$file" >"$tmp"
+    mv "$tmp" "$file"
 }
 
 # --- Mirror a directory tree verbatim (for any nested support dirs) ---
