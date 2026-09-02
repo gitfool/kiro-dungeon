@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "pstack",
-  "version": "2609.120.607",
+  "version": "2609.204.3822",
   "description": "Rigorous engineering skills and principles from the Cursor plugin pstack by Lauren Tan.",
   "author": {
     "name": "Sean Fausett",
