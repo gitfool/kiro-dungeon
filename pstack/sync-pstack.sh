@@ -80,7 +80,7 @@ UPSTREAM_PATH="pstack"
 AGENTS_TO_CONVERT=(comment-sicko)
 
 # Skills to exclude entirely (Cursor-specific, no Kiro equivalent).
-SKILLS_TO_EXCLUDE=(grokbot setup-pstack)
+SKILLS_TO_EXCLUDE=(grokbot make-bot-ui setup-pstack)
 
 # --- Paths ---
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
