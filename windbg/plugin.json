@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "windbg",
+  "version": "2608.2819.1210",
+  "description": "Debug Windows dumps, live user-mode/kernel targets, and time travel traces via WinDbg.",
+  "author": {
+    "name": "Sean Fausett",
+    "url": "https://github.com/gitfool"
+  },
+  "keywords": [
+    "windbg",
+    "dbgeng",
+    "dump analysis",
+    "kernel debugging",
+    "time travel debugging"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/gitfool/kiro-dungeon/tree/main/windbg",
+  "repository": "https://github.com/gitfool/kiro-dungeon"
+}
