@@ -70,6 +70,7 @@ Skills, playbooks, principles, and reference material all port cleanly. The glob
 ```
 pstack/
 ├── plugin.json                 ← power manifest
+├── POWER.md                    ← power manifest (legacy)
 ├── steering/                   ← global steering
 │   ├── cursor-runtime.md       ← generic Cursor runtime
 │   └── pstack.md               ← pstack-specific rules

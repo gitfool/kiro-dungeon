@@ -9,3 +9,6 @@ trim_trailing_whitespace = true
 
 [*.{json,rb,toml,xaml,xml,yaml,yml}]
 indent_size = 2
+
+[*.sh]
+switch_case_indent = true

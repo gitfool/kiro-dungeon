@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -euo pipefail
 
 # sync-pstack.sh — Mirrors pstack skills and selected agents from GitHub into this
 # power skills/ directory.
@@ -38,26 +37,43 @@ set -euo pipefail
 # upstream changes, then commit the result.
 #
 # Usage:
-#   sync-pstack.sh [--dry-run]
+#   sync-pstack.sh [--dry-run] [--ref <branch|tag|sha>]
+
+set -euo pipefail
 
 DRY_RUN=false
+REF="main"
 
-for arg in "$@"; do
-    case "$arg" in
+while [ $# -gt 0 ]; do
+    case "$1" in
         --dry-run) DRY_RUN=true ;;
-        -h|--help)
+        --ref)
+            shift
+            if [ $# -eq 0 ]; then
+                echo "--ref requires a value" >&2
+                exit 1
+            fi
+            REF="$1"
+            ;;
+        --ref=*) REF="${1#--ref=}" ;;
+        -h | --help)
             sed -n '3,/^$/s/^# \{0,1\}//p' "$0"
             exit 0
             ;;
-        *) echo "Unknown option: $arg" >&2; exit 1 ;;
+        *)
+            echo "Unknown option: $1" >&2
+            exit 1
+            ;;
     esac
+    shift
 done
 
 # --- Upstream source ---
 REPOSITORY="cursor/plugins"
-BRANCH="main"
 BASE_PATH="pstack/skills"
 AGENTS_PATH="pstack/agents"
+# Path within the upstream repo whose commit date drives this power's version.
+UPSTREAM_PATH="pstack"
 
 # Agents to convert to skills. Others (e.g. poteto-agent) are skipped because
 # they're routing stubs with no standalone value.
@@ -69,13 +85,19 @@ SKILLS_TO_EXCLUDE=(grokbot setup-pstack)
 # --- Paths ---
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_ROOT="$SCRIPT_DIR/skills"
+PLUGIN_JSON="$SCRIPT_DIR/plugin.json"
+POWER_MD="$SCRIPT_DIR/POWER.md"
+
+# Shared version-derivation helpers (derive_version, latest_commit_for_path,
+# is_version_regression, write_power_version).
+source "$SCRIPT_DIR/../.github/scripts/lib/version.sh"
 
 GREEN="\033[0;32m"
 BLUE="\033[0;34m"
 YELLOW="\033[0;33m"
 RESET="\033[0m"
 
-echo -e "${GREEN}sync-pstack: $REPOSITORY@$BRANCH ($BASE_PATH)${RESET}"
+echo -e "${GREEN}sync-pstack: $REPOSITORY@$REF ($BASE_PATH)${RESET}"
 if [ "$DRY_RUN" = true ]; then echo -e "  ${YELLOW}[DRY RUN]${RESET}"; fi
 
 # --- Download and extract archive ---
@@ -86,7 +108,8 @@ TEMP_DIR=$(mktemp -d)
 TARBALL_PATH="$TEMP_DIR/archive.tar.gz"
 
 echo -e "${BLUE}  Downloading archive...${RESET}"
-ARCHIVE_URL="https://github.com/$REPOSITORY/archive/refs/heads/$BRANCH.tar.gz"
+# The generic archive/<ref> form resolves a branch, tag, or commit SHA.
+ARCHIVE_URL="https://github.com/$REPOSITORY/archive/$REF.tar.gz"
 GH_TOKEN="${GH_TOKEN:-$(gh auth token 2>/dev/null || true)}"
 CURL_OPTS=(-fsSL)
 if [ -n "$GH_TOKEN" ]; then
@@ -102,7 +125,7 @@ echo -e "${BLUE}  Extracting...${RESET}"
 tar -xzf "$TARBALL_PATH" -C "$TEMP_DIR"
 rm "$TARBALL_PATH"
 
-# Find extracted root (GitHub archives have a top-level folder like plugins-main/)
+# Find extracted root (GitHub archives have a top-level folder like plugins-<ref>/)
 EXTRACTED_ROOT=$(find "$TEMP_DIR" -maxdepth 1 -mindepth 1 -type d | head -1)
 SOURCE_ROOT="$EXTRACTED_ROOT/$BASE_PATH"
 
@@ -123,7 +146,7 @@ set_skill_name() {
         /^---[[:space:]]*$/ { fm++; print; next }
         fm == 1 && /^name:/ { print "name: " name; next }
         { print }
-    ' "$source_file" > "$dest_file"
+    ' "$source_file" >"$dest_file"
 }
 
 # --- Stats ---
@@ -142,7 +165,7 @@ copy_output_file() {
     local relative_path="./${dest_path#"$SCRIPT_DIR"/}"
 
     if [ -f "$dest_path" ]; then
-        if diff -q <(tr -d '\r' < "$source_path") <(tr -d '\r' < "$dest_path") >/dev/null 2>&1; then
+        if diff -q <(tr -d '\r' <"$source_path") <(tr -d '\r' <"$dest_path") >/dev/null 2>&1; then
             echo "    [unchanged] $relative_path"
             STAT_UNCHANGED=$((STAT_UNCHANGED + 1))
             return 0
@@ -158,21 +181,6 @@ copy_output_file() {
 
     mkdir -p "$(dirname "$dest_path")"
     cp "$source_path" "$dest_path"
-}
-
-# --- Mirror a directory tree verbatim ---
-sync_support_dir() {
-    local source_dir="$1"
-    local dest_dir="$2"
-
-    for item in "$source_dir"/*; do
-        if [ ! -e "$item" ]; then continue; fi
-        if [ -d "$item" ]; then
-            sync_support_dir "$item" "$dest_dir/$(basename "$item")"
-        else
-            copy_output_file "$item" "$dest_dir/$(basename "$item")"
-        fi
-    done
 }
 
 # --- Mirror one skill folder ---
@@ -228,7 +236,7 @@ convert_agent_to_skill() {
         fm == 1 && /^is_background:/ { next }
         fm == 1 && /^disable-model-invocation:/ { added_dmi = 1; print; next }
         { print }
-    ' "$source_file" > "$dest_file"
+    ' "$source_file" >"$dest_file"
 }
 
 # --- Kiro guards ---
@@ -253,9 +261,24 @@ prepend_kiro_guard() {
             next
         }
         { print }
-    ' "$file" > "$tmp"
+    ' "$file" >"$tmp"
 
     mv "$tmp" "$file"
+}
+
+# --- Mirror a directory tree verbatim (for any nested support dirs) ---
+sync_support_dir() {
+    local source_dir="$1"
+    local dest_dir="$2"
+
+    for item in "$source_dir"/*; do
+        if [ ! -e "$item" ]; then continue; fi
+        if [ -d "$item" ]; then
+            sync_support_dir "$item" "$dest_dir/$(basename "$item")"
+        else
+            copy_output_file "$item" "$dest_dir/$(basename "$item")"
+        fi
+    done
 }
 
 # --- Main sync ---
@@ -268,7 +291,10 @@ for dir in "$SOURCE_ROOT"/*/; do
     # Skip excluded skills (Cursor-specific, no Kiro equivalent)
     skip=false
     for ex in "${SKILLS_TO_EXCLUDE[@]}"; do
-        if [ "$ex" = "$name" ]; then skip=true; break; fi
+        if [ "$ex" = "$name" ]; then
+            skip=true
+            break
+        fi
     done
     if [ "$skip" = true ]; then
         echo "    [excluded] $name (Cursor-specific)"
@@ -276,7 +302,7 @@ for dir in "$SOURCE_ROOT"/*/; do
     fi
     case "$name" in
         principle-*) PRINCIPLES+=("$name") ;;
-        *)           SKILLS+=("$name") ;;
+        *) SKILLS+=("$name") ;;
     esac
 done
 
@@ -306,7 +332,10 @@ if [ -d "$AGENTS_ROOT" ]; then
         # Check if this agent is in the convert list
         found=false
         for a in "${AGENTS_TO_CONVERT[@]}"; do
-            if [ "$a" = "$agent_name" ]; then found=true; break; fi
+            if [ "$a" = "$agent_name" ]; then
+                found=true
+                break
+            fi
         done
 
         if [ "$found" = false ]; then
@@ -338,19 +367,24 @@ if [ -d "$SKILLS_ROOT" ]; then
         # Skip if it's an agent-converted skill
         found=false
         for a in "${AGENTS_TO_CONVERT[@]}"; do
-            if [ "$a" = "$name" ]; then found=true; break; fi
+            if [ "$a" = "$name" ]; then
+                found=true
+                break
+            fi
         done
         if [ "$found" = true ]; then continue; fi
         # Skip excluded skills (they're intentionally not synced)
         for ex in "${SKILLS_TO_EXCLUDE[@]}"; do
-            if [ "$ex" = "$name" ]; then found=true; break; fi
+            if [ "$ex" = "$name" ]; then
+                found=true
+                break
+            fi
         done
         if [ "$found" = true ]; then continue; fi
         ORPHANS+=("$name")
     done
 fi
 
-# --- Cleanup temp ---
 rm -rf "$TEMP_DIR"
 
 # --- Kiro transform pass ---
@@ -365,7 +399,7 @@ if [ -d "$SKILLS_ROOT" ]; then
 
     # Short-circuit guards for skills with partial limitations
     declare -A TIER1_GUARDS=(
-        [show-me-your-work]="The transcript audit step requires session history access. Skip that step if unavailable."
+        ["show-me-your-work"]="The transcript audit step requires session history access. Skip that step if unavailable."
     )
 
     for skill in "${!TIER1_GUARDS[@]}"; do
@@ -381,8 +415,8 @@ if [ -d "$SKILLS_ROOT" ]; then
 
     # Not-operational guards for skills/playbooks that cannot work on Kiro
     declare -A TIER2_SKILL_GUARDS=(
-        [recall]="Not operational on Kiro. Requires Cursor transcript file access for context reconstruction. No equivalent mechanism exists."
-        [reflect]="Not operational on Kiro. Requires Cursor transcript file access for learning extraction. No equivalent mechanism exists."
+        ["recall"]="Not operational on Kiro. Requires Cursor transcript file access for context reconstruction. No equivalent mechanism exists."
+        ["reflect"]="Not operational on Kiro. Requires Cursor transcript file access for learning extraction. No equivalent mechanism exists."
     )
 
     for skill in "${!TIER2_SKILL_GUARDS[@]}"; do
@@ -397,13 +431,13 @@ if [ -d "$SKILLS_ROOT" ]; then
     done
 
     declare -A TIER2_PLAYBOOK_GUARDS=(
-        [orchestrate]="Not operational on Kiro. Requires Cursor-specific orchestration tooling (cloud agents, orch.ts state CLI). Read for methodology only."
-        [shipping]="Not operational on Kiro. Requires Graphite stack model and cloud agents for per-PR verification. Read for methodology only."
-        [autopilot-full]="Not operational on Kiro. Requires Cursor cloud agents and Graphite for autonomous merge. Read for methodology only."
-        [autopilot-stack]="Not operational on Kiro. Requires Cursor cloud agents and Graphite for autonomous stack delivery. Read for methodology only."
-        [session-pickup]="Not operational on Kiro. Requires Cursor transcript file access for session resumption."
-        [pause-safely]="Not operational on Kiro. References Cursor restart and transcript persistence behavior. On Kiro, session state is managed by the platform."
-        [worktree-cleanup]="References Cursor worktree layout. On Kiro, use \`git worktree list\` directly and skip \`.cursor/worktrees/\` references."
+        ["orchestrate"]="Not operational on Kiro. Requires Cursor-specific orchestration tooling (cloud agents, orch.ts state CLI). Read for methodology only."
+        ["shipping"]="Not operational on Kiro. Requires Graphite stack model and cloud agents for per-PR verification. Read for methodology only."
+        ["autopilot-full"]="Not operational on Kiro. Requires Cursor cloud agents and Graphite for autonomous merge. Read for methodology only."
+        ["autopilot-stack"]="Not operational on Kiro. Requires Cursor cloud agents and Graphite for autonomous stack delivery. Read for methodology only."
+        ["session-pickup"]="Not operational on Kiro. Requires Cursor transcript file access for session resumption."
+        ["pause-safely"]="Not operational on Kiro. References Cursor restart and transcript persistence behavior. On Kiro, session state is managed by the platform."
+        ["worktree-cleanup"]="References Cursor worktree layout. On Kiro, use \`git worktree list\` directly and skip \`.cursor/worktrees/\` references."
     )
 
     for playbook in "${!TIER2_PLAYBOOK_GUARDS[@]}"; do
@@ -416,13 +450,44 @@ if [ -d "$SKILLS_ROOT" ]; then
                     echo "> **Kiro compatibility:** ${TIER2_PLAYBOOK_GUARDS[$playbook]}"
                     echo ""
                     cat "$playbook_file"
-                } > "$tmp"
+                } >"$tmp"
                 mv "$tmp" "$playbook_file"
             fi
             echo "    [guard] playbooks/$playbook (not operational)"
             STAT_GUARDED=$((STAT_GUARDED + 1))
         fi
     done
+fi
+
+# --- Version ---
+# Derive the version from the commit date of UPSTREAM_PATH at REF, and write it
+# to plugin.json and POWER.md. This is the same derivation whether REF is a seed
+# tag (e.g. v1.0.0) or the default branch (the bump workflow's path), so there
+# is one source of truth. The regression guard refuses a version that would move
+# backwards, which usually means an upstream force-push worth investigating.
+echo -e "${BLUE}  Versioning...${RESET}"
+VERSION_STATUS="unchanged"
+if commit_info=$(latest_commit_for_path "$REPOSITORY" "$UPSTREAM_PATH" "$REF"); then
+    commit_date=$(echo "$commit_info" | sed -n 1p)
+    commit_sha=$(echo "$commit_info" | sed -n 2p)
+    next_version=$(derive_version "$commit_date")
+    current_version=$(jq -r '.version // "0.0.0"' "$PLUGIN_JSON")
+    short_sha="${commit_sha:0:7}"
+
+    if [ "$current_version" = "$next_version" ]; then
+        echo "    $current_version (unchanged, $short_sha)"
+    elif is_version_regression "$current_version" "$next_version"; then
+        echo -e "    ${YELLOW}regression: $current_version -> $next_version ($short_sha)${RESET}" >&2
+        VERSION_STATUS="regression"
+    else
+        echo "    $current_version -> $next_version ($short_sha)"
+        VERSION_STATUS="bumped"
+        if [ "$DRY_RUN" = false ]; then
+            write_power_version "$next_version" "$PLUGIN_JSON" "$POWER_MD"
+        fi
+    fi
+else
+    echo -e "    ${YELLOW}could not query upstream commit; version left unchanged${RESET}" >&2
 fi
 
 # --- Summary ---
@@ -435,7 +500,15 @@ echo "    Normalized: $STAT_NORMALIZED skill name(s)"
 echo "    Agents:     $STAT_AGENTS_CONVERTED converted, $STAT_AGENTS_SKIPPED skipped"
 echo "    Excluded:   ${#SKILLS_TO_EXCLUDE[@]} skill(s) (Cursor-specific)"
 echo "    Guards:     $STAT_GUARDED"
+echo "    Version:    $VERSION_STATUS"
 echo "    Output:     $SKILLS_ROOT"
+
+# A regression means upstream appears to have moved backwards (e.g. force-push).
+# Exit non-zero so a caller (the bump workflow) can revert this power's changes
+# and flag it, rather than committing content with a stale version.
+if [ "$VERSION_STATUS" = "regression" ]; then
+    exit 3
+fi
 
 if [ ${#ORPHANS[@]} -gt 0 ]; then
     echo ""
