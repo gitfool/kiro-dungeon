@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "dotnet-msbuild",
+  "version": "2608.1709.1622",
+  "description": "Comprehensive MSBuild and .NET build skills: failure diagnosis, performance optimization, code quality, and modernization. Ports the dotnet/skills dotnet-msbuild plugin to a Kiro power.",
+  "author": {
+    "name": "Sean Fausett",
+    "url": "https://github.com/gitfool"
+  },
+  "keywords": [
+    "msbuild",
+    "dotnet",
+    "binlog",
+    "build performance",
+    "build diagnostics"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/gitfool/kiro-dungeon/tree/main/dotnet-msbuild",
+  "repository": "https://github.com/gitfool/kiro-dungeon"
+}
