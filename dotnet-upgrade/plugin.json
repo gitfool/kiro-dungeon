@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "dotnet-upgrade",
+  "version": "2608.2712.1620",
+  "description": "Skills for migrating and upgrading .NET projects across framework versions, language features, and compatibility targets: .NET 8→9→10→11 migrations, nullable references, Native AOT compatibility, and Thread.Abort removal. Ports the dotnet/skills dotnet-upgrade plugin to a Kiro power.",
+  "author": {
+    "name": "Sean Fausett",
+    "url": "https://github.com/gitfool"
+  },
+  "keywords": [
+    "dotnet",
+    "upgrade",
+    "migration",
+    "nullable references",
+    "native aot"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/gitfool/kiro-dungeon/tree/main/dotnet-upgrade",
+  "repository": "https://github.com/gitfool/kiro-dungeon"
+}
