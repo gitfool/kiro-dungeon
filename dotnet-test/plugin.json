@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "dotnet-test",
+  "version": "2609.1514.4735",
+  "description": "Skills for running, generating, analyzing, and improving tests: test execution, filtering, platform detection, coverage, testability, and MSTest workflows. Test generation and the polyglot analysis skills work across many languages. Ports the dotnet/skills dotnet-test plugin to a Kiro power.",
+  "author": {
+    "name": "Sean Fausett",
+    "url": "https://github.com/gitfool"
+  },
+  "keywords": [
+    "dotnet",
+    "testing",
+    "test generation",
+    "coverage",
+    "testability"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/gitfool/kiro-dungeon/tree/main/dotnet-test",
+  "repository": "https://github.com/gitfool/kiro-dungeon"
+}
