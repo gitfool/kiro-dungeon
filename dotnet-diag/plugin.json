@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "dotnet-diag",
+  "version": "2609.1508.4714",
+  "description": "Skills for .NET performance investigations, debugging, and incident analysis: performance analysis and anti-pattern scanning, microbenchmarking, trace and crash-dump collection, CLR activation debugging, and Android/Apple crash symbolication. Ports the dotnet/skills dotnet-diag plugin to a Kiro power.",
+  "author": {
+    "name": "Sean Fausett",
+    "url": "https://github.com/gitfool"
+  },
+  "keywords": [
+    "dotnet",
+    "diagnostics",
+    "performance",
+    "profiling",
+    "crash dump"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/gitfool/kiro-dungeon/tree/main/dotnet-diag",
+  "repository": "https://github.com/gitfool/kiro-dungeon"
+}
