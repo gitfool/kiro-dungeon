@@ -588,6 +588,10 @@ consequences of that matching worth knowing:
   *neither* resolves until you rename or remove one — guessing would open a session on the wrong
   machine while reporting it as the right one. (Two spellings of the *same* connection are fine,
   and the environment overriding the file is the documented precedence, not a conflict.)
+- Two spellings that reach the **same** target but *describe* it differently keep working, and the
+  field they disagree about is **dropped** rather than settled as whichever was read first — a
+  `guest` nothing vouches for is the failure the field exists to prevent. One spelling saying less
+  than the other is not a disagreement: the union is taken.
 - An entry whose name is not a name (letters, digits, `-`, `_`, `.`) is skipped, and not quoted
   back in the error — the usual cause is an entry written the wrong way round, which would make
   the name the connection string.
@@ -596,6 +600,41 @@ Raw connection strings stay supported (`attach_kernel { "connection": "net:port=
 target no profile covers. Either way the session reports itself with the key masked —
 `kernel target: profile "ctf-vm" (net:port=50000,key=<redacted>)` — so `session_status` can still
 tell two kernel targets apart. `attach_kernel` with no arguments lists the profiles this host has.
+
+### A profile can also say what it reaches
+
+A name says nothing about the endpoint behind it — whether it is the hypervisor or the NT kernel,
+or whether two of these names are two endpoints of the **same guest**. That pairing is what
+[hypervisor debugging](live-and-kernel.md) is built on, and **do not infer it from the names**: the
+wiring is machine-specific, so a convention read off two names is a guess that looks like knowledge.
+
+A profile's value may be an object instead of a string, in the file or in the environment:
+
+```json
+{
+  "lab-nt": {
+    "connection": "net:port=50000,key=1.2.3.4",
+    "role": "windows",
+    "guest": "lab",
+    "note": "root partition"
+  },
+  "lab-hv": { "connection": "net:port=50001,key=5.6.7.8", "role": "hypervisor", "guest": "lab" },
+  "ctf-vm": "net:port=50002,key=9.9.9.9"
+}
+```
+
+`role` is `windows`/`nt` or `hypervisor`/`hv`; `guest` is a name shared by every endpoint of one
+machine; `note` is free text. All are optional, a bare string still works, and the listing
+`attach_kernel {}` returns now carries them — which is how you find a pair without asking. They
+also come back as a `profile` object on the open and on each `session_status` row.
+
+**Read `role` as checked and the rest as claims.** An attach derives the same fact from the
+engine's primary module, and a profile that disagrees with what it reached has its `role`
+withdrawn, with the reason reported beside the profile — tell the user their file is wrong, and
+trust the attach. `guest` and `note` cannot
+be checked by anything: they are the operator's word. If a description is missing after an edit,
+the field was dropped for being malformed and the configuration report says which; the profile
+itself still works.
 
 ## Elevation matrix
 
