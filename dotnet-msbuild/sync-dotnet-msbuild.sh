@@ -88,6 +88,7 @@ declare -A AGENT_RENAMES=(
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_ROOT="$SCRIPT_DIR/skills"
 PLUGIN_JSON="$SCRIPT_DIR/plugin.json"
+POWER_MD="$SCRIPT_DIR/POWER.md"
 
 # Shared version-derivation helpers (derive_version, latest_commit_for_path,
 # is_version_regression, write_power_version).
@@ -337,8 +338,8 @@ rm -rf "$TEMP_DIR"
 
 # --- Versioning ---
 # Derive the version from the commit date of UPSTREAM_PATH at REF, and write it
-# to plugin.json. This is the same derivation whether REF is a seed tag (e.g.
-# v0.1.8) or the default branch (the bump workflow's path), so there is one
+# to plugin.json and POWER.md. This is the same derivation whether REF is a seed
+# tag (e.g. v0.1.8) or the default branch (the bump workflow's path), so there is one
 # source of truth. The regression guard refuses a version that would move
 # backwards, which usually means an upstream force-push worth investigating.
 echo -e "${BLUE}  Versioning...${RESET}"
@@ -359,7 +360,7 @@ if commit_info=$(latest_commit_for_path "$REPOSITORY" "$UPSTREAM_PATH" "$REF"); 
         echo "    $current_version -> $next_version ($short_sha)"
         VERSION_STATUS="bumped"
         if [ "$DRY_RUN" = false ]; then
-            write_power_version "$next_version" "$PLUGIN_JSON"
+            write_power_version "$next_version" "$PLUGIN_JSON" "$POWER_MD"
         fi
     fi
 else
