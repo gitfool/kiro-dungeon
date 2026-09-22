@@ -6,6 +6,8 @@ Packages the [dotnet/skills](https://github.com/dotnet/skills) `dotnet-test` plu
 
 This is a **skills-only power** — no bundled MCP server. Unlike the sibling [`dotnet-msbuild`](../dotnet-msbuild) power, upstream `dotnet-test` declares no `mcpServers`, so there is nothing to install alongside the skills and no `mcp.json`. It does ship agents, two of which this power converts to skills (see [below](#agents-become-skills)).
 
+Test framework and platform *migration* (MSTest/xUnit version upgrades, xUnit/NUnit → MSTest, VSTest → Microsoft.Testing.Platform) lives in the companion [`dotnet-test-migration`](../dotnet-test-migration) power, split out upstream. Those migration skills reference several skills in *this* power by name (`platform-detection`, `writing-mstest-tests`, `run-tests`), so installing both gives the full detect → migrate → verify → audit workflow.
+
 ## Install
 
 Powers panel, then **Add Custom Power**, then **Import power from GitHub**:
@@ -78,6 +80,7 @@ dotnet-test/
 
 - [dotnet/skills](https://github.com/dotnet/skills)
 - [dotnet-test source](https://github.com/dotnet/skills/tree/main/plugins/dotnet-test)
+- [dotnet-test-migration power](../dotnet-test-migration) (companion)
 - [Agent Plugins specification](https://agent-plugins.org) and [Agent Skills specification](https://agentskills.io/specification)
 - [Kiro powers](https://kiro.dev/docs/powers) and [skills](https://kiro.dev/docs/skills) docs
 - [Manifest-compliance issue #1087](https://github.com/dotnet/skills/issues/1087)
