@@ -1,0 +1,19 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "chrome-devtools",
+  "version": "2609.1708.301",
+  "description": "Reliable Chrome automation, debugging, and performance analysis for AI agents. Ports the ChromeDevTools/chrome-devtools-mcp plugin to a Kiro power.",
+  "author": {
+    "name": "Sean Fausett",
+    "url": "https://github.com/gitfool"
+  },
+  "keywords": [
+    "browser",
+    "chrome",
+    "debugging",
+    "performance"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/gitfool/kiro-dungeon/tree/main/chrome-devtools",
+  "repository": "https://github.com/gitfool/kiro-dungeon"
+}
