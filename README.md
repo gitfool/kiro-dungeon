@@ -10,6 +10,7 @@ Each is a Kiro power; see its subdirectory README for install and usage details.
 
 | Name | Description |
 | --- | --- |
+| [aotw-dotnet-skills](aotw-dotnet-skills/README.md) | [Aaronontheweb/dotnet-skills](https://github.com/Aaronontheweb/dotnet-skills) plugin; C#, Akka.NET, Aspire, testing, and performance skills |
 | [chrome-devtools](chrome-devtools/README.md) | [ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp) plugin; Chrome automation, debugging, and performance skills with the chrome-devtools MCP server |
 | [dotnet-diag](dotnet-diag/README.md) | [dotnet/skills](https://github.com/dotnet/skills) plugin [dotnet-diag](https://github.com/dotnet/skills/tree/main/plugins/dotnet-diag); .NET diagnostics and performance skills |
 | [dotnet-msbuild](dotnet-msbuild/README.md) | [dotnet/skills](https://github.com/dotnet/skills) plugin [dotnet-msbuild](https://github.com/dotnet/skills/tree/main/plugins/dotnet-msbuild); MSBuild skills and binlog MCP server |
