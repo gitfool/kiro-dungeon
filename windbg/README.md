@@ -104,15 +104,6 @@ windbg/
         └── ttd.md
 ```
 
-## Maintenance
-
-`sync-windbg.sh` mirrors `skills/windbg-debugging` from upstream and rewrites the playbooks' repo-relative `../../docs/` links to absolute upstream URLs, so they resolve from the standalone power. It is a maintainer tool, not an installer; run it to refresh the skill when upstream changes, then commit the result. Version bumping is handled separately by the repo's `bump` workflow, which derives a date-based version from the upstream commit date.
-
-```bash
-./windbg/sync-windbg.sh --dry-run   # preview
-./windbg/sync-windbg.sh             # apply
-```
-
 ## Links
 
 - [windbg-mcp source](https://github.com/glslang/windbg-mcp)

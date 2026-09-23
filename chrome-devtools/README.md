@@ -96,15 +96,6 @@ chrome-devtools/
 └── sync-chrome-devtools.sh     ← maintainer tool
 ```
 
-## Maintenance
-
-`sync-chrome-devtools.sh` mirrors `skills/` from upstream. It is a maintainer tool, not an installer; run it to refresh the skills when upstream changes, then commit the result. Version bumping is handled by the repo's `bump` workflow, which derives a date-based version from the upstream commit date.
-
-```bash
-./chrome-devtools/sync-chrome-devtools.sh --dry-run   # preview
-./chrome-devtools/sync-chrome-devtools.sh             # apply
-```
-
 ## Links
 
 - [chrome-devtools-mcp source](https://github.com/ChromeDevTools/chrome-devtools-mcp)
