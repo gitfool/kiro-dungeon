@@ -2,7 +2,7 @@
 name: "pstack"
 displayName: "pstack"
 description: "Rigorous engineering skills and principles from the Cursor plugin pstack by Lauren Tan."
-version: "2609.1303.3859"
+version: "2609.2307.4034"
 keywords: ["poteto", "pstack", "unslop", "engineering principles", "rigorous engineering"]
 author: "Sean Fausett"
 ---
