@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "dotnet-test",
-  "version": "2609.1514.4735",
+  "version": "2609.2506.4852",
   "description": "Skills for running, generating, analyzing, and improving tests: test execution, filtering, platform detection, coverage, testability, and MSTest workflows. Test generation and the polyglot analysis skills work across many languages. Ports the dotnet/skills dotnet-test plugin to a Kiro power.",
   "author": {
     "name": "Sean Fausett",
