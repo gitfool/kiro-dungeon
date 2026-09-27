@@ -51,8 +51,8 @@ a bare `execute`, which only sets the run state and doesn't move the target.
 **When a sequence mutates the target, run it as one `debug_batch`, not as separate calls.** A
 patched byte, an armed breakpoint or a resumed thread has to be put back, and the call that would
 have sent the cleanup is exactly the one that times out. A batch's `always` block is reached inside
-the engine process on every path, including a failed assertion and an expired deadline, and part of
-the budget is reserved so it has time to run; the report names the exact failing step, what each
+the engine process on every path it can be aimed at, including a failed assertion and an expired
+deadline, and part of the budget is reserved so it has time to run; the report names the exact failing step, what each
 step changed, whether the rollback completed, and whether the target is left stopped, running or
 gone. Save what you are about to overwrite with an `eval` step's `capture`, and restore it in
 `always` as `{{name}}`. A step can also ask the kernel pool what the `pool_*` tools ask —
@@ -61,10 +61,17 @@ is" stays *inside* the transaction instead of splitting it in two; a `refresh` t
 the step's share of the batch budget rather than by the walker's own, and says how much of the pool
 it reached.
 
-Two edges to keep in mind. If a step overruns far enough to consume the reserve too, cleanup is
-skipped and the result says `rollback: INCOMPLETE` — believe it rather than the intent. And a
-teardown while the batch runs — `end_session`, or a client disconnect — stops it at its **next**
-step and rolls it back first, reported as `BATCH: ABANDONED`; it cannot cut short a step already
+Three edges to keep in mind. If a step overruns far enough to consume the reserve too, cleanup is
+skipped and the result says `rollback: INCOMPLETE` — believe it rather than the intent. If a step
+leaves the debugger holding something other than the target the batch started against — an
+`.attach` reached through a wrapper, or a wrapped `.create`, whose change lands at the `g` after it
+because the command only arms the creation; an engine that stops saying what it holds or which
+process it is in; a session left pointed at a different process — the batch stops at **that** step
+and the cleanup is dropped on purpose, reported as `BATCH: TARGET REPLACED` or `TARGET UNCERTAIN`
+with `rollback: NOT ATTEMPTED`: a restore that cannot be aimed is worse than one that is missing, so
+whatever the steps changed is still in place and putting it back is yours. And a teardown while the
+batch runs — `end_session`, or a client disconnect — stops it at its **next** step and rolls it back
+first, reported as `BATCH: ABANDONED`; it cannot cut short a step already
 inside the debugger, so a batch built from long steps waits out the one it is in before it unwinds
 (the teardown waits with it).
 
