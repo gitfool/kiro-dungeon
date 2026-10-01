@@ -2,7 +2,7 @@
 name: "chrome-devtools"
 displayName: "chrome-devtools"
 description: "Reliable Chrome automation, debugging, and performance analysis for AI agents. Ports the ChromeDevTools/chrome-devtools-mcp plugin to a Kiro power."
-version: "2609.2409.2345"
+version: "2610.106.1924"
 keywords: ["browser", "chrome", "debugging", "performance"]
 author: "Sean Fausett"
 ---
