@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "windbg",
-  "version": "2609.2714.3521",
+  "version": "2610.216.1752",
   "description": "Debug Windows dumps, live user-mode/kernel targets, and time travel traces via WinDbg.",
   "author": {
     "name": "Sean Fausett",
