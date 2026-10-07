@@ -2,7 +2,7 @@
 name: "dotnet-test"
 displayName: "dotnet-test"
 description: "Skills for running, generating, analyzing, and improving tests: test execution, filtering, platform detection, coverage, testability, and MSTest workflows. Test generation and the polyglot analysis skills work across many languages. Ports the dotnet/skills dotnet-test plugin to a Kiro power."
-version: "2610.605.5328"
+version: "2610.712.3221"
 keywords: ["dotnet", "testing", "test generation", "coverage", "testability"]
 author: "Sean Fausett"
 ---
