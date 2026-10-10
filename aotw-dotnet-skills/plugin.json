@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "aotw-dotnet-skills",
-  "version": "2609.1717.4736",
+  "version": "2610.1001.5235",
   "description": "Comprehensive .NET development skills and specialist agents from Aaron Stannard's dotnet-skills: C#, Akka.NET, Aspire, EF Core, testing, serialization, DI, performance, and Roslyn source generators. Ports the Aaronontheweb/dotnet-skills plugin to a Kiro power.",
   "author": {
     "name": "Sean Fausett",
