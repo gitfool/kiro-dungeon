@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "dotnet-test-migration",
-  "version": "2610.808.3022",
+  "version": "2610.919.1834",
   "description": "Skills and an orchestrator agent for migrating .NET test frameworks and platforms: MSTest and xUnit version upgrades, xUnit/NUnit-to-MSTest conversion, and VSTest to Microsoft.Testing.Platform. Ports the dotnet/skills dotnet-test-migration plugin to a Kiro power.",
   "author": {
     "name": "Sean Fausett",

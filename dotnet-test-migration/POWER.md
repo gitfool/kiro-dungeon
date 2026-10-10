@@ -2,7 +2,7 @@
 name: "dotnet-test-migration"
 displayName: "dotnet-test-migration"
 description: "Skills and an orchestrator agent for migrating .NET test frameworks and platforms: MSTest and xUnit version upgrades, xUnit/NUnit-to-MSTest conversion, and VSTest to Microsoft.Testing.Platform. Ports the dotnet/skills dotnet-test-migration plugin to a Kiro power."
-version: "2610.808.3022"
+version: "2610.919.1834"
 keywords: ["dotnet", "testing", "migration", "mstest", "xunit"]
 author: "Sean Fausett"
 ---
