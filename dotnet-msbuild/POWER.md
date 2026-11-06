@@ -2,7 +2,7 @@
 name: "dotnet-msbuild"
 displayName: "dotnet-msbuild"
 description: "Comprehensive MSBuild and .NET build skills: failure diagnosis, performance optimization, code quality, and modernization. Ports the dotnet/skills dotnet-msbuild plugin to a Kiro power."
-version: "2611.209.1016"
+version: "2611.617.615"
 keywords: ["msbuild", "dotnet", "binlog", "build performance", "build diagnostics"]
 author: "Sean Fausett"
 ---
