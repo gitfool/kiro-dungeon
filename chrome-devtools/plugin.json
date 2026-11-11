@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "chrome-devtools",
-  "version": "2611.1016.2344",
+  "version": "2611.1113.3108",
   "description": "Reliable Chrome automation, debugging, and performance analysis for AI agents. Ports the ChromeDevTools/chrome-devtools-mcp plugin to a Kiro power.",
   "author": {
     "name": "Sean Fausett",
