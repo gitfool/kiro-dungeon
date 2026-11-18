@@ -4,6 +4,8 @@
 
 > **Kiro compatibility:** Not operational on Kiro. Requires Cursor-specific orchestration tooling (cloud agents, orch.ts state CLI). Read for methodology only.
 
+> **Kiro compatibility:** Not operational on Kiro. Requires Cursor-specific orchestration tooling (cloud agents, orch.ts state CLI). Read for methodology only.
+
 ### Orchestrate
 
 **You run the program, never the code. Decide which agent does each piece of work, then check what each one produces.** For a standing project handed to one coordinator chat: multi-day, many stacked PRs, dozens to hundreds of subagents, few human turns. One task driven to a predicate is Autonomous run. One ambitious run that needs a bespoke workflow is figure-it-out. Work that one agent could finish inside the session's budget is not a program.
