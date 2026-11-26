@@ -23,6 +23,10 @@ set -euo pipefail
 # immediate subdirectories of skills/ are treated as skills by Kiro, so nested
 # markdown is never loaded and needs no special handling.
 #
+# skills/ is a mirror: any file the sync did not write this run (upstream deleted
+# it, or its skill was removed or excluded) is deleted, and emptied directories
+# are removed.
+#
 # This is a maintainer tool, not an installer. Run it to refresh skills/ when
 # upstream changes, then commit the result.
 #
@@ -120,6 +124,9 @@ fi
 STAT_CREATED=0
 STAT_UPDATED=0
 STAT_UNCHANGED=0
+STAT_DELETED=0
+# Every path copy_output_file writes (or would write), used to prune the rest.
+declare -A EXPECTED_FILES=()
 
 # --- File output ---
 # Compares with CR removed. Comparing this way avoids reporting every file as
@@ -129,6 +136,7 @@ copy_output_file() {
     local source_path="$1"
     local dest_path="$2"
     local relative_path="./${dest_path#"$SCRIPT_DIR"/}"
+    EXPECTED_FILES["$dest_path"]=1
 
     if [ -f "$dest_path" ]; then
         if diff -q <(tr -d '\r' < "$source_path") <(tr -d '\r' < "$dest_path") >/dev/null 2>&1; then
@@ -201,16 +209,18 @@ for s in "${SKILLS[@]}"; do
     sync_skill_folder "$SOURCE_ROOT/$s" "$s"
 done
 
-# --- Orphan detection ---
-# A local skill is an orphan if it maps to no upstream skill.
-ORPHANS=()
+# --- Prune files no longer upstream ---
 if [ -d "$SKILLS_ROOT" ]; then
-    for dir in "$SKILLS_ROOT"/*/; do
-        if [ ! -d "$dir" ]; then continue; fi
-        name=$(basename "$dir")
-        if [ -d "$SOURCE_ROOT/$name" ]; then continue; fi
-        ORPHANS+=("$name")
-    done
+    echo -e "${BLUE}  Pruning files no longer upstream...${RESET}"
+    while IFS= read -r -d '' file; do
+        if [ -n "${EXPECTED_FILES[$file]:-}" ]; then continue; fi
+        echo "    [deleted] ./${file#"$SCRIPT_DIR"/}"
+        STAT_DELETED=$((STAT_DELETED + 1))
+        if [ "$DRY_RUN" = false ]; then rm -f "$file"; fi
+    done < <(find "$SKILLS_ROOT" -type f -print0)
+    if [ "$DRY_RUN" = false ]; then
+        find "$SKILLS_ROOT" -mindepth 1 -type d -empty -delete
+    fi
 fi
 
 # --- Cleanup temp ---
@@ -253,6 +263,7 @@ echo -e "${GREEN}  Done.${RESET}"
 echo "    Created:    $STAT_CREATED"
 echo "    Updated:    $STAT_UPDATED"
 echo "    Unchanged:  $STAT_UNCHANGED"
+echo "    Deleted:    $STAT_DELETED"
 echo "    Version:    $VERSION_STATUS"
 echo "    Output:     $SKILLS_ROOT"
 
@@ -261,13 +272,4 @@ echo "    Output:     $SKILLS_ROOT"
 # than committing content with a stale version.
 if [ "$VERSION_STATUS" = "regression" ]; then
     exit 3
-fi
-
-if [ ${#ORPHANS[@]} -gt 0 ]; then
-    echo ""
-    echo "  ${#ORPHANS[@]} local skill(s) no longer exist upstream:"
-    for o in "${ORPHANS[@]}"; do echo "    $o"; done
-    printf "  Remove with: git rm -r"
-    for o in "${ORPHANS[@]}"; do printf " skills/%s" "$o"; done
-    printf "\n"
 fi

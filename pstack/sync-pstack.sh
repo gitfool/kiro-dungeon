@@ -33,6 +33,10 @@
 # immediate subdirectories of skills/ are treated as skills, so nested markdown
 # is never loaded and needs no special handling.
 #
+# skills/ is a mirror: any file the sync did not write this run (upstream deleted
+# it, or its skill was removed or excluded) is deleted, and emptied directories
+# are removed.
+#
 # This is a maintainer tool, not an installer. Run it to refresh skills/ when
 # upstream changes, then commit the result.
 #
@@ -153,6 +157,9 @@ set_skill_name() {
 STAT_CREATED=0
 STAT_UPDATED=0
 STAT_UNCHANGED=0
+STAT_DELETED=0
+# Every path copy_output_file writes (or would write), used to prune the rest.
+declare -A EXPECTED_FILES=()
 STAT_NORMALIZED=0
 
 # --- File output ---
@@ -163,6 +170,7 @@ copy_output_file() {
     local source_path="$1"
     local dest_path="$2"
     local relative_path="./${dest_path#"$SCRIPT_DIR"/}"
+    EXPECTED_FILES["$dest_path"]=1
 
     if [ -f "$dest_path" ]; then
         if diff -q <(tr -d '\r' <"$source_path") <(tr -d '\r' <"$dest_path") >/dev/null 2>&1; then
@@ -356,33 +364,18 @@ else
     echo "  No agents/ directory found upstream, skipping."
 fi
 
-# --- Orphan detection ---
-ORPHANS=()
+# --- Prune files no longer upstream ---
 if [ -d "$SKILLS_ROOT" ]; then
-    for dir in "$SKILLS_ROOT"/*/; do
-        if [ ! -d "$dir" ]; then continue; fi
-        name=$(basename "$dir")
-        # Skip if it exists upstream in skills/
-        if [ -d "$SOURCE_ROOT/$name" ]; then continue; fi
-        # Skip if it's an agent-converted skill
-        found=false
-        for a in "${AGENTS_TO_CONVERT[@]}"; do
-            if [ "$a" = "$name" ]; then
-                found=true
-                break
-            fi
-        done
-        if [ "$found" = true ]; then continue; fi
-        # Skip excluded skills (they're intentionally not synced)
-        for ex in "${SKILLS_TO_EXCLUDE[@]}"; do
-            if [ "$ex" = "$name" ]; then
-                found=true
-                break
-            fi
-        done
-        if [ "$found" = true ]; then continue; fi
-        ORPHANS+=("$name")
-    done
+    echo -e "${BLUE}  Pruning files no longer upstream...${RESET}"
+    while IFS= read -r -d '' file; do
+        if [ -n "${EXPECTED_FILES[$file]:-}" ]; then continue; fi
+        echo "    [deleted] ./${file#"$SCRIPT_DIR"/}"
+        STAT_DELETED=$((STAT_DELETED + 1))
+        if [ "$DRY_RUN" = false ]; then rm -f "$file"; fi
+    done < <(find "$SKILLS_ROOT" -type f -print0)
+    if [ "$DRY_RUN" = false ]; then
+        find "$SKILLS_ROOT" -mindepth 1 -type d -empty -delete
+    fi
 fi
 
 rm -rf "$TEMP_DIR"
@@ -431,7 +424,6 @@ if [ -d "$SKILLS_ROOT" ]; then
     done
 
     declare -A TIER2_PLAYBOOK_GUARDS=(
-        ["orchestrate"]="Not operational on Kiro. Requires Cursor-specific orchestration tooling (cloud agents, orch.ts state CLI). Read for methodology only."
         ["shipping"]="Not operational on Kiro. Requires Graphite stack model and cloud agents for per-PR verification. Read for methodology only."
         ["autopilot-full"]="Not operational on Kiro. Requires Cursor cloud agents and Graphite for autonomous merge. Read for methodology only."
         ["autopilot-stack"]="Not operational on Kiro. Requires Cursor cloud agents and Graphite for autonomous stack delivery. Read for methodology only."
@@ -496,6 +488,7 @@ echo -e "${GREEN}  Done.${RESET}"
 echo "    Created:    $STAT_CREATED"
 echo "    Updated:    $STAT_UPDATED"
 echo "    Unchanged:  $STAT_UNCHANGED"
+echo "    Deleted:    $STAT_DELETED"
 echo "    Normalized: $STAT_NORMALIZED skill name(s)"
 echo "    Agents:     $STAT_AGENTS_CONVERTED converted, $STAT_AGENTS_SKIPPED skipped"
 echo "    Excluded:   ${#SKILLS_TO_EXCLUDE[@]} skill(s) (Cursor-specific)"
@@ -508,13 +501,4 @@ echo "    Output:     $SKILLS_ROOT"
 # and flag it, rather than committing content with a stale version.
 if [ "$VERSION_STATUS" = "regression" ]; then
     exit 3
-fi
-
-if [ ${#ORPHANS[@]} -gt 0 ]; then
-    echo ""
-    echo "  ${#ORPHANS[@]} local skill(s) no longer exist upstream:"
-    for o in "${ORPHANS[@]}"; do echo "    $o"; done
-    printf "  Remove with: git rm -r"
-    for o in "${ORPHANS[@]}"; do printf " skills/%s" "$o"; done
-    printf "\n"
 fi
